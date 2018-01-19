@@ -3,6 +3,8 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/init.h"
+#include "lib/kernel/stdio.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -15,6 +17,20 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call!\n");
-  thread_exit ();
+  if (f->esp == SYS_HALT)
+  {
+    power_off();
+  }
+  else if (f->esp == SYS_CREATE)
+  {
+
+
+    // If created set f->eax = 1
+    // If not created set f->eax = 0
+  }
+  else
+  {
+    printf ("YOU SHIT IMPLEMENT THIS SYSCALL!\n");
+    thread_exit ();
+  }
 }
