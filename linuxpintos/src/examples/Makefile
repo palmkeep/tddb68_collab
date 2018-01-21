@@ -6,11 +6,12 @@ SRCDIR = ..
 PROGS = cat cmp cp echo halt hex-dump ls mcat mcp mkdir pwd rm shell \
 	bubsort insult lineup matmult recursor \
 	sumargv lab2test lab1test lab1test2 pfs pfs_reader pfs_writer dummy longrun \
-	child parent create-bad lab1createtest lab1quit
+	child parent create-bad lab1createtest lab1quit lab1writetest
 
 # Our test programs
 lab1createtest_SRC = lab1createtest.c
 lab1quit_SRC = lab1quit.c
+lab1writetest_SRC = lab1writetest.c
 
 # Added test programs
 sumargv_SRC = sumargv.c

@@ -8,6 +8,8 @@
 #include "threads/init.h"
 #include "filesys/filesys.h"
 #include "lib/kernel/stdio.h"
+#include "lib/kernel/console.h"
+
 
 static void syscall_handler (struct intr_frame *);
 
@@ -29,7 +31,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   else if ( syscall_nr == SYS_EXIT )
   {
     int status = *(int*)(f->esp+4);
-    // Use $status in lab3
+    f->eax = status;
     thread_exit();
   }
   else if ( syscall_nr == SYS_CREATE )
@@ -45,9 +47,27 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = 0;
     }
   }
-  else if ( syscall_nr == SYS_WRITE )
+  else if ( syscall_nr == SYS_OPEN)
   {
 
+  }
+  else if ( syscall_nr == SYS_WRITE )
+  {
+    int file_descriptor = *(int*)(f->esp+4);
+    void* buffer = *(void**)(f->esp+8);
+    unsigned size = *(unsigned*)(f->esp+12);
+
+    if (file_descriptor == 1)
+    {
+      size_t size_buffer = (size_t)size;  // Recast to size_t for use with putbuf()
+      char* char_buffer = (char*)buffer;  // Recast to write as char to console
+      putbuf(char_buffer, size_buffer);
+      // f->eax;    // Output amount of chars written
+    }
+    else
+    {
+      //struct file* file_struct = filesys_open();
+    }
   }
   else
   {
