@@ -25,17 +25,19 @@
 
 int main(void)
 {
+  printf("TEST CREATE BEGUN");
+
   char *testdata = "sample file content";
   bool created;
 
   TITLE("TEST 2: Creating file\n");
-  created = create("test0", strlen(testdata));
+  created = create("test1", strlen(testdata));
   if (!created)
   {
     ERROR("Could not create file \"test0\", does it already exist?\n");
   }
 
-  created = create("test0", strlen(testdata));
+  created = create("test1", strlen(testdata));
   if (created)
   {
     ERROR("Succeeded in creating already existing file.\n");
@@ -43,5 +45,5 @@ int main(void)
 
   SUCCESS("TEST 2: Passed\n");
 
-  exit(0);
+  return EXIT_SUCCESS;
 }

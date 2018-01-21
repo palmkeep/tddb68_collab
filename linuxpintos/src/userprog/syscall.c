@@ -20,15 +20,23 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  int sys_call_nr = *(int*)(f->esp);
+  unsigned syscall_nr = *(unsigned*)f->esp;
 
-  if ( sys_call_nr == SYS_HALT )
+  if ( syscall_nr == SYS_HALT )
   {
     power_off();
   }
-  else if ( sys_call_nr == SYS_CREATE )
+  else if ( syscall_nr == SYS_EXIT )
   {
-    if ( filesys_create(f->esp+4,f->esp+8) )
+    int status = *(int*)(f->esp+4);
+    // Use $status in lab3
+    thread_exit();
+  }
+  else if ( syscall_nr == SYS_CREATE )
+  {
+    char* filename_pointer = *(char**)(f->esp+4);
+    off_t file_size = *(unsigned*)(f->esp+8);
+    if ( filesys_create( filename_pointer, file_size) )
     {
       f->eax = 1;
     }
@@ -37,15 +45,14 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = 0;
     }
   }
-  else if ( sys_call_nr == SYS_WRITE )
+  else if ( syscall_nr == SYS_WRITE )
   {
 
   }
   else
   {
     printf ("IMPLEMENT THIS SYSCALL!\n");
-    printf ("SYS_CALL_NR: %d\n", sys_call_nr);
-    printf ("SYS_CALL_CREATE: %d\n", SYS_CREATE);
+    printf ("SYS_CALL_NR: %d\n", syscall_nr);
 
     thread_exit ();
   }
