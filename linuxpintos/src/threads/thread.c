@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "thread.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -42,38 +43,48 @@ struct kernel_thread_frame
   };
 
 
+
 #ifdef USERPROG
-/* Filedscriptor manager */
+/* Filedescriptor manager */
 
-int avail_fd = 2;
+//avail_id set in thread_init()
 
-int add_file_to_fd(struct file* file_struct_ptr)
+int add_file_to_fd(struct thread* curr_thread, char* filename)
 {
-  if (avail_fd == -1 || 127 < avail_fd) return -1; //Throw error code
+  if ( curr_thread->avail_fd < 0 ) return -1; //Throw error code
 
-  file_tracker[avail_fd].open_file = file_struct_ptr;
-  int placed_fd = avail_fd;
-  avail_fd++;
+  struct file* opened_file = filesys_open(filename);
+  if (opened_file == NULL) return -1;
 
-  while (file_tracker[avail_fd].open_file != NULL )
+  curr_thread->file_tracker[curr_thread->avail_fd] = opened_file;
+  int placed_fd = curr_thread->avail_fd;
+
+  curr_thread->avail_fd++;
+  while (curr_thread->file_tracker[curr_thread->avail_fd] != NULL )
   {
-    avail_fd++;
-    if (127 < avail_fd) return -1;  //Throw error code
+    curr_thread->avail_fd++;
+    if ( 129 < curr_thread->avail_fd ) 
+    {
+      curr_thread->avail_fd = -1;
+      return -1;  //Throw error code
+    }
   }
-  return placed_fd;
+
+  return placed_fd + 2;
 }
 
-struct file* get_file_from_fd(int fd)
+struct file* get_file_from_fd(struct thread* curr_thread, int fd)
 {
-  if (127 < fd) return NULL;
-  return file_tracker[fd];
+  if (130 < fd-2) return NULL;
+  return curr_thread->file_tracker[fd-2];
 }
 
-bool destroy_file_from_fd(int fd)
+bool close_file_from_fd(struct thread* curr_thread, int fd)
 {
-  if (127 < fd) return false;
-  file_tracker[fd].open_file = NULL;
-  avail_fd = fd;
+  if (130 < fd-2) return false;
+  file_close(curr_thread->file_tracker[fd-2]);
+  curr_thread->file_tracker[fd-2] = NULL;
+  curr_thread->avail_fd = fd-2;
   return true;
 }
 
@@ -131,6 +142,8 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+
+  initial_thread->avail_fd = 0;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.

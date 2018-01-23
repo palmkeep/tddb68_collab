@@ -29,7 +29,8 @@
 #include <syscall.h>
 #include <stdarg.h>
 
-#define FD_TEST_COUNT 128
+//#define FD_TEST_COUNT 128
+#define FD_TEST_COUNT 32
 #define READ_SIZE 50
 #define READ_CONSOLE_COUNT 10
 
@@ -99,13 +100,13 @@ int main(void)
     if (fd == -1)
     {
       printf("\n");
-      ERROR("Failed to open file, iteration %d.\n", i + 1);
+      ERROR("E(%d) Failed to open file, iteration %d.\n", fd, i + 1);
     }
 
     if (fd == STDIN_FILENO || fd == STDOUT_FILENO)
     {
       printf("\n");
-      ERROR("Opened file with invalid file descriptor.\n");
+      ERROR("E(%d) Opened file with invalid file descriptor.\n", fd);
     }
 
     int j;
@@ -114,7 +115,7 @@ int main(void)
       if (file_descriptors[j] == fd)
       {
 	printf("\n");
-        ERROR("Opened file with reoccuring file descriptor.\n");
+        ERROR("E(%d) Opened file with reoccuring file descriptor.\n", fd);
       }
     }
 

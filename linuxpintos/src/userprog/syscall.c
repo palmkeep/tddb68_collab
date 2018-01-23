@@ -6,11 +6,14 @@
 
 //Our imports
 #include "threads/init.h"
+
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+
 #include "lib/kernel/stdio.h"
 #include "lib/kernel/console.h"
 
+#include "devices/input.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -50,11 +53,57 @@ syscall_handler (struct intr_frame *f UNUSED)
   }
   else if ( syscall_nr == SYS_OPEN)
   {
-    struct file* opened_file = filesys_open(filename_pointer);
+    char* filename = *(char**)(f->esp+4);
     struct thread* current_thread = thread_current();
-    int fd = current_thread->add_file_to_fd(opened_file);
+    int fd = add_file_to_fd(current_thread, filename);
 
     f->eax = fd;  // Returns -1 if the file could not be opened
+  }
+  else if(syscall_nr == SYS_CLOSE)
+  {
+    int fd = *(int*)(f->esp+4);
+    struct thread* current_thread = thread_current();
+    close_file_from_fd(current_thread, fd);
+  }
+  else if( syscall_nr == SYS_READ )
+  {
+    // SYS_READ Does not work for large buffers
+    int fd = *(int*)(f->esp+4);
+    void* buffer = *(void**)(f->esp+8);
+    off_t size = (off_t)*(unsigned*)(f->esp+12);
+
+    struct thread* current_thread = thread_current();
+
+    struct file* file_struct;
+    if (fd == 0)  // Read from keyboard
+    {
+      off_t it = 0;
+      //uint8_t* byte_buffer = (uint8_t*)buffer;
+      while (it <= size)
+      {
+        uint8_t ch = input_getc();
+        ((uint8_t*)buffer)[it] = ch;
+        it++;
+      }
+      f->eax = size;
+    }
+    else if (fd == 1) // Read from STDOUT
+    {
+      f->eax = -1;
+    }
+    else
+    {
+      file_struct = get_file_from_fd(current_thread, fd);
+      if (file_struct == NULL)
+      {
+        f->eax = -1;// Error reading file, return -1 error code
+      }
+      else
+      {
+        f->eax = file_read( file_struct, buffer, size );  // Return number of bytes read
+      }
+    } 
+
   }
   else if ( syscall_nr == SYS_WRITE )
   {
@@ -67,13 +116,13 @@ syscall_handler (struct intr_frame *f UNUSED)
       size_t size_buffer = (size_t)size;  // Recast to size_t for use with putbuf()
       char* char_buffer = (char*)buffer;  // Recast to write as char to console
       putbuf(char_buffer, size_buffer);
-      f->eax = size_buffer;    // Output amount of chars written
+      f->eax = size_buffer;               // Output amount of chars written
     }
     else
     {
       off_t size_buffer = (off_t)size;
       struct thread* current_thread = thread_current();
-      struct file* file_ptr = current_thread->get_file_from_fd(file_descriptor);
+      struct file* file_ptr = get_file_from_fd(current_thread, file_descriptor);
       file_write( file_ptr, buffer, size_buffer );
       f->eax = size_buffer;
     }

@@ -38,7 +38,8 @@ int main(void)
 
 
   TITLE("TEST 2: Writing to file\n");
-  bytes_written = write(, dummyprint, strlen(dummyprint));
+//  bytes_written = write(, dummyprint, strlen(dummyprint)); 
+//  Fix write to somewhere
   if (bytes_written < 0 || (size_t)bytes_written != strlen(dummyprint))
   {
     ERROR("Incorrect number of written bytes returned from SYS_WRITE.\n");

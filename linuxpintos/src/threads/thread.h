@@ -5,6 +5,9 @@
 #include <list.h>
 #include <stdint.h>
 
+#include "filesys/filesys.h"
+#include "filesys/file.h"
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -92,24 +95,30 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    int avail_fd;
+    struct file* file_tracker[130];
+
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-
-    /* Our filedescriptor manager */
-    struct file_manager{
-      struct file* open_file;
-    } file_tracker[128];
-
-int add_file_to_fd(struct file* file_struct_ptr);
-struct file* get_file_from_fd(int fd);
-bool destroy_file_from_fd(int fd);
-
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+
+#ifdef USERPROG
+int add_file_to_fd(struct thread* curr_thread, char* filename);
+
+struct file* get_file_from_fd(struct thread* curr_thread, int fd);
+
+bool close_file_from_fd(struct thread* curr_thread, int fd);
+#endif
+
+
+
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
