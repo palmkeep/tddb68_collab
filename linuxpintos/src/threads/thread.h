@@ -95,6 +95,16 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+
+    /* Our filedescriptor manager */
+    struct file_manager{
+      struct file* open_file;
+    } file_tracker[128];
+
+int add_file_to_fd(struct file* file_struct_ptr);
+struct file* get_file_from_fd(int fd);
+bool destroy_file_from_fd(int fd);
+
 #endif
 
     /* Owned by thread.c. */

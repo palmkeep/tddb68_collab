@@ -41,6 +41,44 @@ struct kernel_thread_frame
     void *aux;                  /* Auxiliary data for function. */
   };
 
+
+#ifdef USERPROG
+/* Filedscriptor manager */
+
+int avail_fd = 2;
+
+int add_file_to_fd(struct file* file_struct_ptr)
+{
+  if (avail_fd == -1 || 127 < avail_fd) return -1; //Throw error code
+
+  file_tracker[avail_fd].open_file = file_struct_ptr;
+  int placed_fd = avail_fd;
+  avail_fd++;
+
+  while (file_tracker[avail_fd].open_file != NULL )
+  {
+    avail_fd++;
+    if (127 < avail_fd) return -1;  //Throw error code
+  }
+  return placed_fd;
+}
+
+struct file* get_file_from_fd(int fd)
+{
+  if (127 < fd) return NULL;
+  return file_tracker[fd];
+}
+
+bool destroy_file_from_fd(int fd)
+{
+  if (127 < fd) return false;
+  file_tracker[fd].open_file = NULL;
+  avail_fd = fd;
+  return true;
+}
+
+#endif
+
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */

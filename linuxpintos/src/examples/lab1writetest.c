@@ -36,6 +36,19 @@ int main(void)
     SUCCESS("TEST 1: Passed\n");
   }
 
+
+  TITLE("TEST 2: Writing to file\n");
+  bytes_written = write(, dummyprint, strlen(dummyprint));
+  if (bytes_written < 0 || (size_t)bytes_written != strlen(dummyprint))
+  {
+    ERROR("Incorrect number of written bytes returned from SYS_WRITE.\n");
+  }
+  else
+  {
+    SUCCESS("TEST 1: Passed\n");
+  }
+
+
   return EXIT_SUCCESS;
 }
 

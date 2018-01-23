@@ -7,6 +7,7 @@
 //Our imports
 #include "threads/init.h"
 #include "filesys/filesys.h"
+#include "filesys/file.h"
 #include "lib/kernel/stdio.h"
 #include "lib/kernel/console.h"
 
@@ -49,7 +50,11 @@ syscall_handler (struct intr_frame *f UNUSED)
   }
   else if ( syscall_nr == SYS_OPEN)
   {
+    struct file* opened_file = filesys_open(filename_pointer);
+    struct thread* current_thread = thread_current();
+    int fd = current_thread->add_file_to_fd(opened_file);
 
+    f->eax = fd;  // Returns -1 if the file could not be opened
   }
   else if ( syscall_nr == SYS_WRITE )
   {
@@ -62,11 +67,15 @@ syscall_handler (struct intr_frame *f UNUSED)
       size_t size_buffer = (size_t)size;  // Recast to size_t for use with putbuf()
       char* char_buffer = (char*)buffer;  // Recast to write as char to console
       putbuf(char_buffer, size_buffer);
-      // f->eax;    // Output amount of chars written
+      f->eax = size_buffer;    // Output amount of chars written
     }
     else
     {
-      //struct file* file_struct = filesys_open();
+      off_t size_buffer = (off_t)size;
+      struct thread* current_thread = thread_current();
+      struct file* file_ptr = current_thread->get_file_from_fd(file_descriptor);
+      file_write( file_ptr, buffer, size_buffer );
+      f->eax = size_buffer;
     }
   }
   else
