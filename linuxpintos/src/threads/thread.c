@@ -144,6 +144,7 @@ thread_init (void)
   initial_thread->tid = allocate_tid ();
 
   initial_thread->avail_fd = 0;
+  memset(initial_thread->file_tracker, '\0', sizeof(initial_thread->file_tracker));
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
