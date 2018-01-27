@@ -51,19 +51,19 @@ struct kernel_thread_frame
 
 int add_file_to_fd(struct thread* curr_thread, char* filename)
 {
-  if ( curr_thread->avail_fd < 0 ) return -1; //Throw error code
+  if ( curr_thread->tracker_avail_ind < 0 ) return -1; //Throw error code
 
   struct file* opened_file = filesys_open(filename);
   if (opened_file == NULL) return -1;
 
-  curr_thread->file_tracker[curr_thread->avail_fd] = opened_file;
-  int placed_fd = curr_thread->avail_fd;
+  curr_thread->file_tracker[curr_thread->tracker_avail_ind] = opened_file;
+  int placed_fd = curr_thread->tracker_avail_ind;
 
-  curr_thread->avail_fd++;
-  while (curr_thread->file_tracker[curr_thread->avail_fd] != NULL )
+  curr_thread->tracker_avail_ind++;
+  while (curr_thread->file_tracker[ curr_thread->tracker_avail_ind ] != NULL )
   {
     curr_thread->avail_fd++;
-    if ( 129 < curr_thread->avail_fd ) 
+    if ( LEN_FILE_LIST-1 < curr_thread->avail_fd ) 
     {
       curr_thread->avail_fd = -1;
       return -1;  //Throw error code
@@ -75,16 +75,16 @@ int add_file_to_fd(struct thread* curr_thread, char* filename)
 
 struct file* get_file_from_fd(struct thread* curr_thread, int fd)
 {
-  if (130 < fd-2) return NULL;
+  if (LEN_FILE_LIST < fd-2) return NULL;
   return curr_thread->file_tracker[fd-2];
 }
 
 bool close_file_from_fd(struct thread* curr_thread, int fd)
 {
-  if (130 < fd-2) return false;
+  if (LEN_FILE_LIST < fd-2) return false;
   file_close(curr_thread->file_tracker[fd-2]);
   curr_thread->file_tracker[fd-2] = NULL;
-  curr_thread->avail_fd = fd-2;
+  curr_thread->tracker_avail_ind = fd-2;
   return true;
 }
 
@@ -143,7 +143,7 @@ thread_init (void)
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
 
-  initial_thread->avail_fd = 0;
+  initial_thread->tracker_avail_ind = 0;
   memset(initial_thread->file_tracker, '\0', sizeof(initial_thread->file_tracker));
 }
 

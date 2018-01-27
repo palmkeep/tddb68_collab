@@ -98,8 +98,8 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-    int avail_fd;
-    struct file* file_tracker[130];
+    int tracketrackeravail_ind;
+    struct file* file_tracker[LEN_FILE_LIST];
 
 
 #ifdef USERPROG
