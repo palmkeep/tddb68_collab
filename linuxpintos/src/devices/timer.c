@@ -98,9 +98,26 @@ timer_sleep (int64_t ticks)
 {
   int64_t start = timer_ticks ();
 
+  // #1 Get num ticks from OS boot
+  // #2 Add $ticks
+  // #3 Yield this process and send ticks to semaphores
+
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+
+  struct lock lock;
+  lock_init(&lock);
+
+  struct condition ticks_passed;
+  cond_init(&ticks_passed);
+
+  lock_acquire(&lock);
+  cond_wait(&tick_passed, &lock);
+  lock_release(&lock);
+
+  //while (timer_elapsed (start) < ticks)
+  //{
+  //  thread_yield ();
+  //}
 }
 
 /* Suspends execution for approximately MS milliseconds. */

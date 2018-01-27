@@ -30,7 +30,7 @@
 #include <stdarg.h>
 
 //#define FD_TEST_COUNT 128
-#define FD_TEST_COUNT 32
+#define FD_TEST_COUNT 128
 #define READ_SIZE 50
 #define READ_CONSOLE_COUNT 10
 

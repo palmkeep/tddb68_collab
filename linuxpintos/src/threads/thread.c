@@ -62,10 +62,10 @@ int add_file_to_fd(struct thread* curr_thread, char* filename)
   curr_thread->tracker_avail_ind++;
   while (curr_thread->file_tracker[ curr_thread->tracker_avail_ind ] != NULL )
   {
-    curr_thread->avail_fd++;
-    if ( LEN_FILE_LIST-1 < curr_thread->avail_fd ) 
+    curr_thread->tracker_avail_ind++;
+    if ( LEN_FILE_LIST-1 < curr_thread->tracker_avail_ind ) 
     {
-      curr_thread->avail_fd = -1;
+      curr_thread->tracker_avail_ind = -1;
       return -1;  //Throw error code
     }
   }
@@ -573,6 +573,13 @@ schedule_tail (struct thread *prev)
 static void
 schedule (void) 
 {
+
+  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  // Create and handle a waiting_list where waiting threads 
+  // push a condition semaphore and the tick they wish to wake at
+  // Push Woken threads to ready_list
+  //
+
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;

@@ -98,7 +98,7 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-    int tracketrackeravail_ind;
+    int tracker_avail_ind;
     struct file* file_tracker[LEN_FILE_LIST];
 
 
