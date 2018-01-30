@@ -11,6 +11,8 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
+#include "lib/kernel/list.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #include "thread.h"
@@ -24,6 +26,16 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+
+/* List of waiting processes in THREAD_BLOCKED state, that is, processes
+   that are waiting for an event to trigger. */
+struct waiting_list_elem
+{
+  struct list_elem elem;
+  struct thread* f;
+};
+
+static struct list waiting_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -170,6 +182,27 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
+
+  struct thread* e = list_head(&waiting_list);
+  while (( e = list_next(e) ) != list_end(&waiting_list) )
+  {
+    // Check if thread can unsleep
+    // If it is ready, set to THREAD_READY
+    // If not stop iteration (while-loop)
+    if ( e.ready_tick < timer_ticks() )
+    {
+      e.ready_tick = -1;
+      e.ready_cond = NULL;
+      e.status = THREAD_READY;
+      list_pop_front(&waiting_list);  // Discard from ready list; if 
+                                      // in trouble push this element 
+                                      // to ready_list
+    }
+    else
+    {
+      //break; If the list is sorted we can break here
+    }
+  }
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -610,3 +643,17 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+
+
+
+
+
+////// Our temp code
+
+
+
+void thread_add_to_waiting (struct thread* f)
+{
+  list_push_back(&waiting_list, f);
+}

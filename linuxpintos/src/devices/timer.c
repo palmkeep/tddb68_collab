@@ -106,12 +106,18 @@ timer_sleep (int64_t ticks)
 
   struct lock lock;
   lock_init(&lock);
-
   struct condition ticks_passed;
   cond_init(&ticks_passed);
 
   lock_acquire(&lock);
-  cond_wait(&tick_passed, &lock);
+
+  struct thread* f = thread_current();
+
+  f->ready_tick = ticks;
+  f->ready_cond = ticks_passed;
+  thread_add_to_waiting(f);
+
+  cond_wait(&ticks_passed, &lock);
   lock_release(&lock);
 
   //while (timer_elapsed (start) < ticks)
