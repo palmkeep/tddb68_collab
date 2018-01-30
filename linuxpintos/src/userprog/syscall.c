@@ -93,7 +93,7 @@ call_read(struct intr_frame *f)
   {
     f->eax = -1;
   }
-  else
+  else              // Read from file
   {
     file_struct = get_file_from_fd(current_thread, fd);
     if (file_struct == NULL)

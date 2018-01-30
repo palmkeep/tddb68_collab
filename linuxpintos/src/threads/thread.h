@@ -8,6 +8,7 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 
+
 #include "threads/synch.h"
 
 /* States in a thread's life cycle. */
@@ -97,10 +98,6 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
 
-    /* Waiting */
-    int64_t ready_tick;
-    struct condition ready_on_cond;
-
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -125,6 +122,19 @@ struct file* get_file_from_fd(struct thread* curr_thread, int fd);
 
 bool close_file_from_fd(struct thread* curr_thread, int fd);
 #endif
+
+
+/* THREAD_WAITING */
+/*
+struct waiting_thread_list_elem
+{
+  struct list_elem elem;
+  struct thread* thread;
+  int64_t ready_tick;
+  struct semaphore* ready_sema;
+};
+*/
+
 
 
 
@@ -160,5 +170,20 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+/* Waiting thread */
+
+
+struct waiting_thread_list_elem
+{
+  struct list_elem elem;
+  struct thread* thread;
+  int64_t ready_tick;
+  struct semaphore* ready_sema;
+};
+
+
+void thread_add_to_waiting (struct waiting_thread_list_elem* waiting_thread);
+
 
 #endif /* threads/thread.h */

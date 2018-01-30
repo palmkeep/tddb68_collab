@@ -96,29 +96,24 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
-
-  // #1 Get num ticks from OS boot
-  // #2 Add $ticks
-  // #3 Yield this process and send ticks to semaphores
+  //int64_t start = timer_ticks ();
+  // Old code where the check was made in this function
 
   ASSERT (intr_get_level () == INTR_ON);
 
-  struct lock lock;
-  lock_init(&lock);
-  struct condition ticks_passed;
-  cond_init(&ticks_passed);
-
-  lock_acquire(&lock);
+  struct semaphore ticks_passed;
+  sema_init(&ticks_passed, 0);
 
   struct thread* f = thread_current();
 
-  f->ready_tick = ticks;
-  f->ready_cond = ticks_passed;
-  thread_add_to_waiting(f);
+  struct waiting_thread_list_elem waiting_thread;
+  waiting_thread.thread = f;
+  waiting_thread.ready_tick = ticks;
+  waiting_thread.ready_sema = &ticks_passed;
+ 
+  thread_add_to_waiting( &waiting_thread );
 
-  cond_wait(&ticks_passed, &lock);
-  lock_release(&lock);
+  sema_down( &ticks_passed );
 
   //while (timer_elapsed (start) < ticks)
   //{

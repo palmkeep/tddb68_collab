@@ -12,7 +12,8 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "devices/timer.h"
-#include "lib/kernel/list.h"
+
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #include "thread.h"
@@ -29,13 +30,8 @@ static struct list ready_list;
 
 /* List of waiting processes in THREAD_BLOCKED state, that is, processes
    that are waiting for an event to trigger. */
-struct waiting_list_elem
-{
-  struct list_elem elem;
-  struct thread* f;
-};
-
 static struct list waiting_list;
+
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -53,6 +49,17 @@ struct kernel_thread_frame
     thread_func *function;      /* Function to call. */
     void *aux;                  /* Auxiliary data for function. */
   };
+
+
+
+
+/* Thread waiting state implementation */
+void thread_add_to_waiting (struct waiting_thread_list_elem* waiting_thread)
+{
+  list_push_back(&waiting_list, &(waiting_thread->elem) );
+}
+
+
 
 
 
@@ -148,6 +155,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
+  list_init (&waiting_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -183,17 +191,23 @@ thread_tick (void)
 {
   struct thread *t = thread_current ();
 
-  struct thread* e = list_head(&waiting_list);
-  while (( e = list_next(e) ) != list_end(&waiting_list) )
+
+  /*
+  struct list_elem* e;
+  e = list_head(&waiting_list);
+
+  while ( e != list_end(&waiting_list) )
   {
-    // Check if thread can unsleep
-    // If it is ready, set to THREAD_READY
-    // If not stop iteration (while-loop)
-    if ( e.ready_tick < timer_ticks() )
+    struct waiting_thread_list_elem* waiting_thread = list_entry (e, struct waiting_thread_list_elem, elem);
+
+    if ( waiting_thread->ready_tick < timer_ticks() )
     {
-      e.ready_tick = -1;
-      e.ready_cond = NULL;
-      e.status = THREAD_READY;
+      sema_up( waiting_thread->ready_sema);
+      list_push_back( &ready_list, &(waiting_thread->thread)->elem );
+
+
+      //Iterate
+      e = list_next(e);
       list_pop_front(&waiting_list);  // Discard from ready list; if 
                                       // in trouble push this element 
                                       // to ready_list
@@ -201,8 +215,13 @@ thread_tick (void)
     else
     {
       //break; If the list is sorted we can break here
+
+
+      // Iterate
+      e = list_next(e);
     }
   }
+  */
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -606,13 +625,6 @@ schedule_tail (struct thread *prev)
 static void
 schedule (void) 
 {
-
-  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  // Create and handle a waiting_list where waiting threads 
-  // push a condition semaphore and the tick they wish to wake at
-  // Push Woken threads to ready_list
-  //
-
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
@@ -643,17 +655,3 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
-
-
-
-
-
-
-////// Our temp code
-
-
-
-void thread_add_to_waiting (struct thread* f)
-{
-  list_push_back(&waiting_list, f);
-}
