@@ -192,9 +192,16 @@ thread_tick (void)
   struct thread *t = thread_current ();
 
 
-  /*
+  
   struct list_elem* e;
-  e = list_head(&waiting_list);
+  if ( !list_empty(&waiting_list) )
+  {
+    e = list_head(&waiting_list);
+  }
+  else
+  {
+    e = list_end(&waiting_list);
+  }
 
   while ( e != list_end(&waiting_list) )
   {
@@ -207,10 +214,10 @@ thread_tick (void)
 
 
       //Iterate
+      struct list_elem* tmp;
+      tmp = e;
       e = list_next(e);
-      list_pop_front(&waiting_list);  // Discard from ready list; if 
-                                      // in trouble push this element 
-                                      // to ready_list
+      //list_remove( tmp ); //Exception happens in another interrupt, not this removal. Lists (probably ready_list is handled elsewhere)
     }
     else
     {
@@ -221,7 +228,7 @@ thread_tick (void)
       e = list_next(e);
     }
   }
-  */
+  
 
   /* Update statistics. */
   if (t == idle_thread)

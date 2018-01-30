@@ -124,20 +124,6 @@ bool close_file_from_fd(struct thread* curr_thread, int fd);
 #endif
 
 
-/* THREAD_WAITING */
-/*
-struct waiting_thread_list_elem
-{
-  struct list_elem elem;
-  struct thread* thread;
-  int64_t ready_tick;
-  struct semaphore* ready_sema;
-};
-*/
-
-
-
-
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -171,9 +157,9 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+
+
 /* Waiting thread */
-
-
 struct waiting_thread_list_elem
 {
   struct list_elem elem;

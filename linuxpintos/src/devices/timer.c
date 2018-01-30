@@ -101,6 +101,7 @@ timer_sleep (int64_t ticks)
 
   ASSERT (intr_get_level () == INTR_ON);
 
+  
   struct semaphore ticks_passed;
   sema_init(&ticks_passed, 0);
 
@@ -114,11 +115,14 @@ timer_sleep (int64_t ticks)
   thread_add_to_waiting( &waiting_thread );
 
   sema_down( &ticks_passed );
+  
 
-  //while (timer_elapsed (start) < ticks)
-  //{
-  //  thread_yield ();
-  //}
+  /*
+  while (timer_elapsed (start) < ticks)
+  {
+    thread_yield ();
+  }
+  */
 }
 
 /* Suspends execution for approximately MS milliseconds. */
