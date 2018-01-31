@@ -53,11 +53,17 @@ struct kernel_thread_frame
 
 
 
-/* Thread waiting state implementation */
-void thread_add_to_waiting (struct waiting_thread_list_elem* waiting_thread)
+/* Thread waiting state implementation 
+void thread_add_to_waiting (struct thread* f, int64_t tick)
 {
-  list_push_back(&waiting_list, &(waiting_thread->elem) );
+  struct waiting_thread_list_elem waiting_thread;
+  waiting_thread.thread = f;
+  waiting_thread.ready_tick = tick;
+
+  list_push_back(&waiting_list, &waiting_thread.elem );
+  schedule();
 }
+*/
 
 
 
@@ -153,6 +159,7 @@ thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
+  printf("in thread_init");
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&waiting_list);
@@ -192,42 +199,37 @@ thread_tick (void)
   struct thread *t = thread_current ();
 
 
-  
   struct list_elem* e;
+
+  printf("in thread_tick");
+  enum intr_level old_level;
+  old_level = intr_disable();
+
   if ( !list_empty(&waiting_list) )
   {
     e = list_head(&waiting_list);
-  }
-  else
-  {
-    e = list_end(&waiting_list);
-  }
+    e = list_next(e);
 
-  while ( e != list_end(&waiting_list) )
-  {
-    struct waiting_thread_list_elem* waiting_thread = list_entry (e, struct waiting_thread_list_elem, elem);
-
-    if ( waiting_thread->ready_tick < timer_ticks() )
+    
+    while ( e != list_end(&waiting_list) );
     {
-      sema_up( waiting_thread->ready_sema);
-      list_push_back( &ready_list, &(waiting_thread->thread)->elem );
-
-
-      //Iterate
+      struct waiting_thread_list_elem* waiting_thread = list_entry (e, struct waiting_thread_list_elem, elem);
       struct list_elem* tmp;
       tmp = e;
       e = list_next(e);
-      //list_remove( tmp ); //Exception happens in another interrupt, not this removal. Lists (probably ready_list is handled elsewhere)
-    }
-    else
-    {
-      //break; If the list is sorted we can break here
 
+      int64_t time_elapsed = timer_elapsed(waiting_thread->start_tick);
 
-      // Iterate
-      e = list_next(e);
+      if ( waiting_thread->num_ticks <= time_elapsed )
+      {
+	thread_unblock( waiting_thread->thread );
+
+	list_remove( tmp ); 
+      }
     }
   }
+
+  intr_set_level(old_level);
   
 
   /* Update statistics. */
@@ -629,6 +631,7 @@ schedule_tail (struct thread *prev)
 
    It's not safe to call printf() until schedule_tail() has
    completed. */
+
 static void
 schedule (void) 
 {
@@ -662,3 +665,17 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+
+
+
+/* Thread waiting state implementation */
+void thread_add_to_waiting (struct thread* f, int64_t start_tick, int64_t num_ticks )
+{
+  struct waiting_thread_list_elem waiting_thread;
+  waiting_thread.thread = f;
+  waiting_thread.start_tick = start_tick;
+  waiting_thread.num_ticks = num_ticks;
+
+  list_push_back( &waiting_list, &waiting_thread.elem );
+}

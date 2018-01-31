@@ -7,7 +7,7 @@
 #include "threads/io.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-  
+
 /* See [8254] for hardware details of the 8254 timer chip. */
 
 #if TIMER_FREQ < 19
@@ -96,25 +96,45 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  //int64_t start = timer_ticks ();
-  // Old code where the check was made in this function
+  int64_t num_ticks;
+
+  if ( ticks < 0 )
+  {
+    return;
+  }
+  else
+  {
+    num_ticks = ticks;
+  }
 
   ASSERT (intr_get_level () == INTR_ON);
 
+
+  enum intr_level old_level = intr_disable();
+
+  int64_t start_tick = timer_ticks();
+
+  thread_add_to_waiting( thread_current(), start_tick, num_ticks );
+  thread_block();
+
+  intr_set_level (old_level);
   
-  struct semaphore ticks_passed;
-  sema_init(&ticks_passed, 0);
+  /*
+  struct semaphore sleep_sema;
+  sema_init(&sleep_sema, 1);
 
   struct thread* f = thread_current();
 
-  struct waiting_thread_list_elem waiting_thread;
-  waiting_thread.thread = f;
-  waiting_thread.ready_tick = ticks;
-  waiting_thread.ready_sema = &ticks_passed;
- 
-  thread_add_to_waiting( &waiting_thread );
+  struct lock l;
+  lock_init(&l);
+  lock_acquire(&l);
 
-  sema_down( &ticks_passed );
+  thread_add_to_waiting( thread_current(), abs_tick, sleep_sema );
+
+  lock_release(&l);
+
+  sema_down( &sleep_sema );
+  */
   
 
   /*

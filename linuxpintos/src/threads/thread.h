@@ -164,12 +164,12 @@ struct waiting_thread_list_elem
 {
   struct list_elem elem;
   struct thread* thread;
-  int64_t ready_tick;
-  struct semaphore* ready_sema;
+  int64_t num_ticks;
+  int64_t start_tick;
 };
 
 
-void thread_add_to_waiting (struct waiting_thread_list_elem* waiting_thread);
+void thread_add_to_waiting (struct thread* f, int64_t start_tick, int64_t num_ticks);
 
 
 #endif /* threads/thread.h */
