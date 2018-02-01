@@ -110,39 +110,10 @@ timer_sleep (int64_t ticks)
   ASSERT (intr_get_level () == INTR_ON);
 
 
-  enum intr_level old_level = intr_disable();
 
-  int64_t start_tick = timer_ticks();
+  int64_t wake_tick = timer_ticks() + num_ticks;
 
-  thread_add_to_waiting( thread_current(), start_tick, num_ticks );
-  thread_block();
-
-  intr_set_level (old_level);
-  
-  /*
-  struct semaphore sleep_sema;
-  sema_init(&sleep_sema, 1);
-
-  struct thread* f = thread_current();
-
-  struct lock l;
-  lock_init(&l);
-  lock_acquire(&l);
-
-  thread_add_to_waiting( thread_current(), abs_tick, sleep_sema );
-
-  lock_release(&l);
-
-  sema_down( &sleep_sema );
-  */
-  
-
-  /*
-  while (timer_elapsed (start) < ticks)
-  {
-    thread_yield ();
-  }
-  */
+  thread_add_to_waiting( thread_current(), wake_tick, num_ticks );
 }
 
 /* Suspends execution for approximately MS milliseconds. */

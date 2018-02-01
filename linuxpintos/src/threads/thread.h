@@ -105,6 +105,9 @@ struct thread
     struct file* file_tracker[LEN_FILE_LIST];
 
 
+    int64_t wake_tick;
+    struct list_elem waiting_elem;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
