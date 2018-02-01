@@ -172,7 +172,7 @@ struct waiting_thread_list_elem
 };
 
 
-void thread_add_to_waiting (struct thread* f, int64_t start_tick, int64_t num_ticks);
+void thread_add_to_waiting (struct thread* f, int64_t wake_tick);
 
 
 #endif /* threads/thread.h */

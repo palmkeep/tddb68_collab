@@ -109,11 +109,8 @@ timer_sleep (int64_t ticks)
 
   ASSERT (intr_get_level () == INTR_ON);
 
-
-
   int64_t wake_tick = timer_ticks() + num_ticks;
-
-  thread_add_to_waiting( thread_current(), wake_tick, num_ticks );
+  thread_add_to_waiting( thread_current(), wake_tick);
 }
 
 /* Suspends execution for approximately MS milliseconds. */

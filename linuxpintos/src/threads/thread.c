@@ -230,26 +230,7 @@ thread_tick (void)
     }
   }
 
-  /*
-    while ( e != list_end(&waiting_list) );
-    {
-      struct waiting_thread_list_elem* waiting_thread = list_entry (e, struct waiting_thread_list_elem, elem);
-      struct list_elem* tmp;
-      tmp = e;
-      e = list_next(e);
-
-      int64_t time_elapsed = timer_elapsed(waiting_thread->start_tick);
-
-      if ( waiting_thread->num_ticks <= time_elapsed )
-      {
-	      thread_unblock( waiting_thread->thread );
-        list_remove( tmp ); 
-      }
-    }
-  */
-
   intr_set_level(old_level);
-  
 }
 
 /* Prints thread statistics. */
@@ -675,11 +656,11 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 
 /* Thread waiting state implementation */
-void thread_add_to_waiting (struct thread* f, int64_t start_tick, int64_t num_ticks )
+void thread_add_to_waiting (struct thread* f, int64_t wake_tick)
 {
   enum intr_level old_level = intr_disable();
 
-  f->wake_tick = start_tick;
+  f->wake_tick = wake_tick;
   list_push_back( &waiting_list, &(f->waiting_elem) );
 
   thread_block();
