@@ -15,6 +15,12 @@
 
 #include "devices/input.h"
 
+#include "userprog/process.h"
+
+#include "threads/vaddr.h"
+
+#include <stdlib.h>
+
 static void syscall_handler (struct intr_frame *);
 
 void
@@ -28,8 +34,14 @@ syscall_init (void)
 static void 
 call_exit(struct intr_frame *f)
 {
+  /* We need to create a list of pid+return that every parent thread keeps track of
+   * All children need a pointer to their parent so that they can add their return-
+   * value to the list mentioned in prev. sentence.
+   * */
   int status = *(int*)(f->esp+4);
   f->eax = status;    // Might break horribly
+                      // 
+  process_exit();     // Free process resources
   thread_exit();
 }
 
@@ -134,20 +146,39 @@ call_write(struct intr_frame *f)
 
 
 static void
-call_exec()
+call_exec(struct intr_frame *f)
 {
-  pid_t pid = process_execute();
-  f->eax = pid;
+  char* command_line_args = *(char**)(f->esp+4);
+  printf("In CALL_EXEC");
+  if ( is_user_vaddr( (void*)command_line_args) && command_line_args != NULL)
+  {
+    char filename[64];
+    int it = 0;
+    printf("Hello 0");
+    while (command_line_args[it] != ' ')
+    {
+      filename[it] = command_line_args[it];
+      it++;
+    }
+    tid_t pid = process_execute(filename);
+    f->eax = pid;
+  }
+  else
+  {
+    // Bad input: Pointer in kernel space or other user space
+    printf("hello failure");
+    f->eax = -1;
+  }
 }
 
 
 
 /* syscall handler */
-
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   unsigned syscall_nr = *(unsigned*)f->esp;
+  printf("Syscall: %d\n", syscall_nr);
 
   switch (syscall_nr)
   {
@@ -178,11 +209,12 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_WRITE:
       call_write(f);
       break;
-
+/*
     case SYS_EXEC:
-      call_exec;
+      call_exec(f);
       break;
-    default:  ;
+*/
+    default:
       thread_exit ();
       break;
   } 

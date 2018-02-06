@@ -105,7 +105,7 @@ struct thread
     struct file* file_tracker[LEN_FILE_LIST];
 
     /* Semaphore to alert parent of having loaded this threads code (or having failed to do so) */
-    struct semaphore* tried_loading;
+    struct semaphore tried_loading;
 
     int64_t wake_tick;
     struct list_elem waiting_elem;

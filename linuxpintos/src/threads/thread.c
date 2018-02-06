@@ -14,6 +14,7 @@
 #include "devices/timer.h"
 
 #include "threads/synch.h"
+#include "threads/malloc.h"
 
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -160,7 +161,6 @@ thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  printf("in thread_init");
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&waiting_list);
@@ -267,6 +267,8 @@ thread_create (const char *name, int priority,
   struct switch_threads_frame *sf;
   tid_t tid;
 
+  printf("In thread_create\n");
+
   ASSERT (function != NULL);
 
   /* Allocate thread. */
@@ -292,15 +294,11 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
 
-  // Init sema and add to new thread t
-  struct semaphore* sp;
-  sema_init (sp, 1);
-  t->tried_loading = sp;
 
   /* Add to run queue. */
   thread_unblock (t);
 
-  sema_down(sp);    // Lock down this thread and wait for sema_up
+  printf("Exiting\n");
 
   return tid;
 }

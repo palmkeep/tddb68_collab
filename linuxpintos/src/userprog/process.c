@@ -19,7 +19,6 @@
 #include "threads/vaddr.h"
 
 #include "threads/synch.h"
-#include "threads/thread.h"
 
 
 static thread_func start_process NO_RETURN;
@@ -44,6 +43,16 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+
+  sema_init (&(thread_current()->tried_loading), 0);
+  
+  
+  //t->tried_loading = sp;
+
+
+  sema_down(&(thread_current())->tried_loading);
+
+
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -64,6 +73,9 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
+
+  sema_up(&(thread_current()->tried_loading));   // Wake waiting parent-thread
+
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -357,7 +369,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
  done:
   /* We arrive here whether the load is successful or not. */
   file_close (file);
-  sema_up(thread_current()->tried_loading);   // Wake waiting parent-thread
   return success;
 }
 
