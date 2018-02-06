@@ -133,6 +133,14 @@ call_write(struct intr_frame *f)
 
 
 
+static void
+call_exec()
+{
+  pid_t pid = process_execute();
+  f->eax = pid;
+}
+
+
 
 /* syscall handler */
 
@@ -171,6 +179,9 @@ syscall_handler (struct intr_frame *f UNUSED)
       call_write(f);
       break;
 
+    case SYS_EXEC:
+      call_exec;
+      break;
     default:  ;
       thread_exit ();
       break;

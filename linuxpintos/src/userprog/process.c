@@ -18,6 +18,10 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+#include "threads/synch.h"
+#include "threads/thread.h"
+
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -353,6 +357,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
  done:
   /* We arrive here whether the load is successful or not. */
   file_close (file);
+  sema_up(thread_current()->tried_loading);   // Wake waiting parent-thread
   return success;
 }
 

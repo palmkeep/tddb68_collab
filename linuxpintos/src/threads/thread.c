@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #include "devices/timer.h"
 
+#include "threads/synch.h"
 
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -291,8 +292,15 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
 
+  // Init sema and add to new thread t
+  struct semaphore* sp;
+  sema_init (sp, 1);
+  t->tried_loading = sp;
+
   /* Add to run queue. */
   thread_unblock (t);
+
+  sema_down(sp);    // Lock down this thread and wait for sema_up
 
   return tid;
 }
