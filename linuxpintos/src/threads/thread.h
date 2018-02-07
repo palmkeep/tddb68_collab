@@ -101,12 +101,16 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    /* Thread specific file tracker */
     int tracker_avail_ind;
     struct file* file_tracker[LEN_FILE_LIST];
 
-    /* Semaphore to alert parent of having loaded this threads code (or having failed to do so) */
-    struct semaphore tried_loading;
+    /* Parent-Child waiting and returns */
+    struct semaphore tried_loading;   // Alert parent of having loaded this threads code
+    struct thread* parent;
+    struct list returned_children;
 
+    /* Thread sleep implementation  */
     int64_t wake_tick;
     struct list_elem waiting_elem;
 
@@ -162,6 +166,13 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+
+struct child_return
+{
+  struct list_elem elem;
+  tid_t pid;
+  int returned_val;
+};
 
 
 /* Waiting thread */

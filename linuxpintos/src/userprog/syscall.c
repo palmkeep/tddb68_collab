@@ -40,8 +40,13 @@ call_exit(struct intr_frame *f)
    * */
   int status = *(int*)(f->esp+4);
   f->eax = status;    // Might break horribly
-                      // 
-  process_exit();     // Free process resources
+  
+  struct child_return = malloc(sizeof(struct child_return));
+  child_return.pid = current_thread()->tid;
+  child_return.return_val = status;
+  list_push_back( current_thread()->parent, child_return );
+
+  //process_exit();     // Free process resources
   thread_exit();
 }
 
