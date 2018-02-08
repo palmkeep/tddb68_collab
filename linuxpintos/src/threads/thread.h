@@ -109,6 +109,8 @@ struct thread
     struct semaphore tried_loading;   // Alert parent of having loaded this threads code
     struct thread* parent;
     struct list returned_children;
+    tid_t waiting_for_child_id;
+    struct semaphore waiting_for_child;
 
     /* Thread sleep implementation  */
     int64_t wake_tick;
@@ -167,10 +169,10 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 
-struct child_return
+struct child_return_struct
 {
   struct list_elem elem;
-  tid_t pid;
+  tid_t id;
   int returned_val;
 };
 

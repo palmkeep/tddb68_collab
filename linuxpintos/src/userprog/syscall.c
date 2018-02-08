@@ -1,11 +1,13 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
 //Our imports
 #include "threads/init.h"
+#include "threads/malloc.h"
 
 #include "filesys/filesys.h"
 #include "filesys/file.h"
@@ -30,7 +32,6 @@ syscall_init (void)
 }
 
 /* Sys-call specific functions */
-
 static void 
 call_exit(struct intr_frame *f)
 {
@@ -40,17 +41,38 @@ call_exit(struct intr_frame *f)
    * */
   int status = *(int*)(f->esp+4);
   f->eax = status;    // Might break horribly
-  
-  struct child_return = malloc(sizeof(struct child_return));
-  child_return.pid = current_thread()->tid;
-  child_return.return_val = status;
-  list_push_back( current_thread()->parent, child_return );
+  //very unsure seems right
+  struct child_return_struct* child_return = malloc(sizeof(struct child_return_struct));
+  child_return->pid = thread_current()->tid;
+  child_return->returned_val = status;
+  list_push_back( &(thread_current()->parent)->returned_children, &child_return->elem );
 
-  //process_exit();     // Free process resources
+  process_exit();     // Free process resources
   thread_exit();
 }
 
-static void
+void
+call_wait(struct intr_frame *f)
+{
+  struct thread* t = thread_current();
+
+  tid_t child_id = *(tid_t*)(f->esp+4);
+  t->waiting_for_child_id = child_id;
+
+  struct semaphore sema;
+  sema_int(&sema);
+  t-> // DO STUFFS HERE WITH TEXT IN BLOCK OF PAPIREN
+
+  for (	e = list_begin (&returned_children);
+	e != list_end (&returned_children);
+	e = list_next(e))
+  {
+    struct child_return_struct returned_child = list_entry(e);
+
+  }
+}
+
+void
 call_create(struct intr_frame *f)
 {
   char* filename_pointer = *(char**)(f->esp+4);
@@ -80,7 +102,7 @@ call_close(struct intr_frame *f)
   int fd = *(int*)(f->esp+4);
   struct thread* current_thread = thread_current();
   close_file_from_fd(current_thread, fd);
-}
+}returned_children
 
 
 static void
@@ -107,7 +129,7 @@ call_read(struct intr_frame *f)
     f->eax = size;
   }
   else if (fd == 1) // Read from STDOUT
-  {
+  {returned_children
     f->eax = -1;
   }
   else              // Read from file
@@ -194,6 +216,9 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_EXIT:
       call_exit(f);
       break;
+    case SYS_WAIT:
+      call_wait(f);
+      break;
 
     case SYS_CREATE:
       call_create(f);
@@ -214,11 +239,11 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_WRITE:
       call_write(f);
       break;
-/*
+//removed the prevent from this syscall / Julius 
     case SYS_EXEC:
       call_exec(f);
       break;
-*/
+
     default:
       thread_exit ();
       break;
