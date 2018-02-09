@@ -110,7 +110,7 @@ struct thread
     struct thread* parent;
     struct list returned_children;
     tid_t waiting_for_child_id;
-    struct semaphore waiting_for_child;
+    struct semaphore* waiting_for_child;
 
     /* Thread sleep implementation  */
     int64_t wake_tick;

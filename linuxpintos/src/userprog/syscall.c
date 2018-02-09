@@ -21,6 +21,8 @@
 
 #include "threads/vaddr.h"
 
+#include "threads/synch.h"
+
 #include <stdlib.h>
 
 static void syscall_handler (struct intr_frame *);
@@ -39,40 +41,77 @@ call_exit(struct intr_frame *f)
    * All children need a pointer to their parent so that they can add their return-
    * value to the list mentioned in prev. sentence.
    * */
+
+  struct thread* parent = thread_current()->parent;
   int status = *(int*)(f->esp+4);
   f->eax = status;    // Might break horribly
   //very unsure seems right
   struct child_return_struct* child_return = malloc(sizeof(struct child_return_struct));
-  child_return->pid = thread_current()->tid;
+  child_return->id = thread_current()->tid;
   child_return->returned_val = status;
-  list_push_back( &(thread_current()->parent)->returned_children, &child_return->elem );
+  list_push_back( &(parent->returned_children), &child_return->elem );
 
-  process_exit();     // Free process resources
+  if (thread_current()->tid == parent->waiting_for_child_id)
+  {
+    sema_up(parent->waiting_for_child);
+  }
+
+  //process_exit();     // Free process resources
   thread_exit();
 }
 
-void
+static void
 call_wait(struct intr_frame *f)
 {
   struct thread* t = thread_current();
 
   tid_t child_id = *(tid_t*)(f->esp+4);
   t->waiting_for_child_id = child_id;
+  struct list returned_children = t->returned_children;
 
-  struct semaphore sema;
-  sema_int(&sema);
-  t-> // DO STUFFS HERE WITH TEXT IN BLOCK OF PAPIREN
+  bool child_returned = false;
+  struct child_return_struct* returned_child;
 
+  struct list_elem* e;
   for (	e = list_begin (&returned_children);
 	e != list_end (&returned_children);
 	e = list_next(e))
   {
-    struct child_return_struct returned_child = list_entry(e);
-
+    returned_child = list_entry(e, struct child_return_struct, elem);
+    if (returned_child->id == child_id)
+    {
+      break;
+    }
   }
+
+  if (!child_returned)
+  {
+    struct semaphore sema;
+    sema_init(&sema, 0);
+    t->waiting_for_child = &sema;
+    t->waiting_for_child_id = child_id;
+
+    if (!child_returned)
+    {
+      sema_down(&sema);
+    }
+    struct list_elem* e;
+   for (	e = list_begin (&returned_children);
+  	e != list_end (&returned_children);
+  	e = list_next(e))
+    {
+      returned_child = list_entry(e, struct child_return_struct, elem);
+      if (returned_child->id == child_id)
+      {
+        break;
+      }
+    }
+  }
+
+  f->eax = returned_child->returned_val;
 }
 
-void
+static void
 call_create(struct intr_frame *f)
 {
   char* filename_pointer = *(char**)(f->esp+4);
@@ -102,7 +141,7 @@ call_close(struct intr_frame *f)
   int fd = *(int*)(f->esp+4);
   struct thread* current_thread = thread_current();
   close_file_from_fd(current_thread, fd);
-}returned_children
+}
 
 
 static void
@@ -129,7 +168,7 @@ call_read(struct intr_frame *f)
     f->eax = size;
   }
   else if (fd == 1) // Read from STDOUT
-  {returned_children
+  {
     f->eax = -1;
   }
   else              // Read from file
