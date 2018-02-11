@@ -45,7 +45,7 @@ call_exit(struct intr_frame *f)
   struct thread* parent = thread_current()->parent;
   int status = *(int*)(f->esp+4);
   f->eax = status;    // Might break horribly
-  //very unsure seems right
+		      // Very unsure seems right
   struct child_return_struct* child_return = malloc(sizeof(struct child_return_struct));
   child_return->id = thread_current()->tid;
   child_return->returned_val = status;
@@ -66,49 +66,10 @@ call_wait(struct intr_frame *f)
   struct thread* t = thread_current();
 
   tid_t child_id = *(tid_t*)(f->esp+4);
-  t->waiting_for_child_id = child_id;
-  struct list returned_children = t->returned_children;
 
-  bool child_returned = false;
-  struct child_return_struct* returned_child;
+  int returned_val = process_wait(child_id);
 
-  struct list_elem* e;
-  for (	e = list_begin (&returned_children);
-	e != list_end (&returned_children);
-	e = list_next(e))
-  {
-    returned_child = list_entry(e, struct child_return_struct, elem);
-    if (returned_child->id == child_id)
-    {
-      break;
-    }
-  }
-
-  if (!child_returned)
-  {
-    struct semaphore sema;
-    sema_init(&sema, 0);
-    t->waiting_for_child = &sema;
-    t->waiting_for_child_id = child_id;
-
-    if (!child_returned)
-    {
-      sema_down(&sema);
-    }
-    struct list_elem* e;
-   for (	e = list_begin (&returned_children);
-  	e != list_end (&returned_children);
-  	e = list_next(e))
-    {
-      returned_child = list_entry(e, struct child_return_struct, elem);
-      if (returned_child->id == child_id)
-      {
-        break;
-      }
-    }
-  }
-
-  f->eax = returned_child->returned_val;
+  f->eax = returned_val;
 }
 
 static void

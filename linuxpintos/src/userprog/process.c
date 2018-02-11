@@ -45,13 +45,8 @@ process_execute (const char *file_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
 
   sema_init (&(thread_current()->tried_loading), 0);
-  
-  
-  //t->tried_loading = sp;
-
 
   sema_down(&(thread_current())->tried_loading);
-
 
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
@@ -104,8 +99,50 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-    while(true){} // DEBUG
-//  return -1;
+  struct thread* t = thread_current();
+  t->waiting_for_child_id = child_tid;
+  struct list returned_children = t->returned_children;
+
+  bool child_returned = false;
+  struct child_return_struct* returned_child;
+
+  struct list_elem* e;
+  for (	e = list_begin (&returned_children);
+	e != list_end (&returned_children);
+	e = list_next(e))
+  {
+    returned_child = list_entry(e, struct child_return_struct, elem);
+    if (returned_child->id == child_tid)
+    {
+      break;
+    }
+  }
+
+  if (!child_returned)
+  {
+    struct semaphore sema;
+    sema_init(&sema, 0);
+    t->waiting_for_child = &sema;
+    t->waiting_for_child_id = child_tid;
+
+    if (!child_returned)
+    {
+      sema_down(&sema);
+    }
+    struct list_elem* e;
+   for (	e = list_begin (&returned_children);
+  	e != list_end (&returned_children);
+  	e = list_next(e))
+    {
+      returned_child = list_entry(e, struct child_return_struct, elem);
+      if (returned_child->id == child_tid)
+      {
+        break;
+      }
+    }
+  }
+
+  return returned_child->id;
 }
 
 /* Free the current process's resources. */
@@ -113,6 +150,10 @@ void
 process_exit (void)
 {
   struct thread *cur = thread_current ();
+  if ( list_is_interior(&(cur->waiting_elem)) ) 
+  {
+    list_remove ( &(cur->waiting_elem) ); //Might help so elements aren't still in waiting list
+  }
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
@@ -493,7 +534,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12; // FIX THIS
+        *esp = PHYS_BASE - 12;
       else
         palloc_free_page (kpage);
     }

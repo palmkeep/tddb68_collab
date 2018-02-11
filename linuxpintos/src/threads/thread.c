@@ -33,6 +33,7 @@ static struct list ready_list;
 /* List of waiting processes in THREAD_BLOCKED state, that is, processes
    that are waiting for an event to trigger. */
 static struct list waiting_list;
+static struct lock wait_list_lock;
 
 
 /* Idle thread. */
@@ -165,6 +166,8 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&waiting_list);
 
+  lock_init (&wait_list_lock);
+
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -219,15 +222,17 @@ thread_tick (void)
   old_level = intr_disable();
 
  
-  for(e = list_begin (&waiting_list);
+  for(e = list_begin(&waiting_list);
       e != list_end (&waiting_list );
       e = list_next(e))
   {
     struct thread* it = list_entry (e, struct thread, waiting_elem);
-    if(it->wake_tick <= timer_ticks())
+    if(it->wake_tick <= timer_ticks() && e != NULL && e->prev != NULL && e->next != NULL)
     {
       thread_unblock( it );
-      list_remove( &it->waiting_elem );
+      printf("Removing waiting_elem");
+      list_remove( &(it->waiting_elem) );
+      printf("Removed waiting_elem\n");
     }
   }
 
@@ -267,8 +272,6 @@ thread_create (const char *name, int priority,
   struct switch_threads_frame *sf;
   tid_t tid;
 
-  printf("In thread_create\n");
-
   ASSERT (function != NULL);
 
   /* Allocate thread. */
@@ -294,11 +297,8 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
 
-
   /* Add to run queue. */
   thread_unblock (t);
-
-  printf("Exiting\n");
 
   return tid;
 }
@@ -380,6 +380,7 @@ void
 thread_exit (void) 
 {
   ASSERT (!intr_context ());
+  printf("Thread_exit");
 
 #ifdef USERPROG
   process_exit ();
@@ -614,7 +615,9 @@ schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
+      printf("sched tail");
       palloc_free_page (prev);
+      printf("Freed");
     }
 }
 
