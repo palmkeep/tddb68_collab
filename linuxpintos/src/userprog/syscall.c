@@ -119,8 +119,7 @@ call_read(struct intr_frame *f)
   if (fd == 0)  // Read from keyboard
   {
     off_t it = 0;
-    //uint8_t* byte_buffer = (uint8_t*)buffer;
-    while (it <= size)
+    while (it <	size)
     {
       uint8_t ch = input_getc();
       ((uint8_t*)buffer)[it] = ch;
