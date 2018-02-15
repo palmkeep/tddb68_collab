@@ -3,6 +3,13 @@
 
 #include "threads/thread.h"
 
+struct start_process_info
+{
+  char* file_name;
+  bool waiting;
+  struct semaphore* sp;
+};
+
 tid_t process_execute (const char *file_name);
 int process_wait (tid_t);
 void process_exit (void);

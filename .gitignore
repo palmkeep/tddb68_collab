@@ -2,3 +2,4 @@
 ./linuxpintos/src/tests/userprog/lib/
 
 *.o
+*.d

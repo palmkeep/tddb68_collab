@@ -205,7 +205,7 @@ static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   unsigned syscall_nr = *(unsigned*)f->esp;
-  printf("Syscall: %d\n", syscall_nr);
+  //printf("Syscall: %d\n", syscall_nr);
 
   switch (syscall_nr)
   {

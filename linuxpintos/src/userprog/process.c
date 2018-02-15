@@ -24,6 +24,15 @@
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
+/*
+struct start_process_info
+{
+  char* file_name;
+  bool waiting;
+  struct semaphore* sp;
+};
+*/
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -42,11 +51,17 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  struct semaphore sp;
+  sema_init (&sp, 0);
 
-  sema_init (&(thread_current()->tried_loading), 0);
+  struct start_process_info new_process_info;
+  new_process_info.file_name = fn_copy;
+  new_process_info.waiting = true;
+  new_process_info.sp = &sp;
 
-  sema_down(&(thread_current())->tried_loading);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, &new_process_info);
+
+  sema_down(&sp);
 
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
@@ -56,9 +71,10 @@ process_execute (const char *file_name)
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void* info)
 {
-  char *file_name = file_name_;
+  struct start_process_info* args = (struct start_process_info*)info;
+  char *file_name = args->file_name;
   struct intr_frame if_;
   bool success;
 
@@ -69,7 +85,10 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-  sema_up(&(thread_current()->tried_loading));   // Wake waiting parent-thread
+  if ( args->waiting )
+  {
+    sema_up(args->sp);   // Wake waiting parent-thread
+  }
 
 
   /* If load failed, quit. */
@@ -287,7 +306,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-/*#define STACK_DEBUG*/
+#define STACK_DEBUG
 
 #ifdef STACK_DEBUG
   printf("*esp is %p\nstack contents:\n", *esp);
@@ -534,7 +553,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12;
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
