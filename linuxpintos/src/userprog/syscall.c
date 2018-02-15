@@ -178,15 +178,7 @@ call_exec(struct intr_frame *f)
   printf("In CALL_EXEC");
   if ( is_user_vaddr( (void*)command_line_args) && command_line_args != NULL)
   {
-    char filename[64];
-    int it = 0;
-    printf("Hello 0");
-    while (command_line_args[it] != ' ')
-    {
-      filename[it] = command_line_args[it];
-      it++;
-    }
-    tid_t pid = process_execute(filename);
+    tid_t pid = process_execute(command_line_args);
     f->eax = pid;
   }
   else

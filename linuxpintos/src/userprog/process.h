@@ -8,6 +8,7 @@ struct start_process_info
   char* file_name;
   bool waiting;
   struct semaphore* sp;
+  char* args;
 };
 
 tid_t process_execute (const char *file_name);

@@ -38,9 +38,25 @@ struct start_process_info
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name) 
+process_execute (const char* command_line) 
 {
+  char command_line_copy[sizeof(command_line)];
+  strlcpy (command_line_copy, command_line, sizeof(command_line));
+
+  int it = 0;
+  while (command_line_copy[it] != ' ' || command_line_copy[it] != '\0')
+  {
+    it++;
+  }
+  char* args = NULL;
+  if (command_line_copy[it] != ' ')
+  {
+    command_line_copy[it] = '\0';
+    args = &command_line_copy[it+1];
+  }
   char *fn_copy;
+
+  char* file_name = command_line_copy;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
@@ -58,6 +74,7 @@ process_execute (const char *file_name)
   new_process_info.file_name = fn_copy;
   new_process_info.waiting = true;
   new_process_info.sp = &sp;
+  new_process_info.args = args;
 
   tid = thread_create (file_name, PRI_DEFAULT, start_process, &new_process_info);
 
@@ -95,6 +112,18 @@ start_process (void* info)
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
+
+
+  if_.esp = if_.esp - (unsigned)sizeof(args);
+  strlcpy ((char*)(if_.esp), args->args, sizeof(args));
+
+  char* token = (char*)&if_.esp;
+  char* save_ptr;
+  for (	token = strtok_r(args->args, " ", &save_ptr); token != NULL;
+	token = strtok_r(NULL, " ", &save_ptr))
+  {
+
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
