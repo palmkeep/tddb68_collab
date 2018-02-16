@@ -113,17 +113,42 @@ start_process (void* info)
   if (!success) 
     thread_exit ();
 
+  unsigned arg_str_len = (unsigned)sizeof(args);
+  unsigned quad_offset = arg_str_len % 4;
 
-  if_.esp = if_.esp - (unsigned)sizeof(args);
+  if_.esp -= arg_str_len;
   strlcpy ((char*)(if_.esp), args->args, sizeof(args));
+  char* stri = (char*)if_.esp;
+  char* arg_list = (char*)if_.esp;
+  int number_args = 0;
+  while(*stri != '\0' )
+  {
+    if (*stri == ' ' && (*(stri+1) != '\0' || *(stri+1) == ' ')){
+      number_args++;
+    }
+    stri++;
+  }
+  if_.esp -= quad_offset;
+  
+  *((char*)(if_.esp)+1) = '\0';
+  if_.esp -= 4;;
 
   char* token = (char*)&if_.esp;
   char* save_ptr;
+  int i = 1;
   for (	token = strtok_r(args->args, " ", &save_ptr); token != NULL;
 	token = strtok_r(NULL, " ", &save_ptr))
   {
-
+    *((char**)(if_.esp+(i*4))) = token;
+    i++;
   }
+
+  if_.esp -= 12;
+  *(int*)(if_.esp+4) = number_args;
+  *(char**)(if_.esp+8) = &arg_list;
+
+
+
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
