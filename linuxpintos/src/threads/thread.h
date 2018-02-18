@@ -106,12 +106,11 @@ struct thread
     struct file* file_tracker[LEN_FILE_LIST];
 
     /* Parent-Child waiting and returns */
-//    bool loading;
-//    struct semaphore* tried_loading;   // Alert parent of having loaded this threads code
     struct thread* parent;
     struct list returned_children;
     tid_t waiting_for_child_id;
     struct semaphore* waiting_for_child;
+    struct list* parent_return_list;
 
     /* Thread sleep implementation  */
     int64_t wake_tick;

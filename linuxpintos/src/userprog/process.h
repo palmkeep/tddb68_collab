@@ -2,6 +2,7 @@
 #define USERPROG_PROCESS_H
 
 #include "threads/thread.h"
+#include "lib/kernel/list.h"
 
 struct start_process_info
 {
@@ -9,6 +10,7 @@ struct start_process_info
   bool waiting;
   struct semaphore* sp;
   char* args;
+  struct list* return_list;
 };
 
 tid_t process_execute (const char *file_name);

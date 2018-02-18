@@ -42,27 +42,43 @@ call_exit(struct intr_frame *f)
    * value to the list mentioned in prev. sentence.
    * */
 
+  printf("I called exit\n");
   struct thread* parent = thread_current()->parent;
   int status = *(int*)(f->esp+4);
   f->eax = status;    // Might break horribly
 		      // Very unsure seems right
+  
+  
+  printf("HAX\n");
   struct child_return_struct* child_return = malloc(sizeof(struct child_return_struct));
+  printf("HAX\n");
   child_return->id = thread_current()->tid;
   child_return->returned_val = status;
-  list_push_back( &(parent->returned_children), &child_return->elem );
+  printf("HAX\n");
+  if ( list_is_interior( list_begin(thread_current()->parent_return_list) ) )
+  {
+    list_push_back( &(parent->returned_children), &child_return->elem );
+  }
+  printf("HAX\n");
 
+  /*
   if (thread_current()->tid == parent->waiting_for_child_id)
   {
     sema_up(parent->waiting_for_child);
-  }
+  }*/
 
-  //process_exit();     // Free process resources
+  printf("%s: exit(%d)\n", thread_current()->name, status);
+
+  process_exit();     // Free process resources
+  printf("HELLO");
   thread_exit();
+  printf("HELLO");
 }
 
 static void
 call_wait(struct intr_frame *f)
 {
+  printf("I called wait \n");
   struct thread* t = thread_current();
 
   tid_t child_id = *(tid_t*)(f->esp+4);
@@ -207,6 +223,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_EXIT:
       call_exit(f);
       break;
+
     case SYS_WAIT:
       call_wait(f);
       break;

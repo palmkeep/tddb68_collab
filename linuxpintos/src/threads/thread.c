@@ -266,6 +266,9 @@ tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux) 
 {
+  /* thread_current() : Parent
+   * t		      : Child
+   * */
   struct thread *t;
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
@@ -296,6 +299,9 @@ thread_create (const char *name, int priority,
   /* Stack frame for switch_threads(). */
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
+
+  /* Pass parent-child vars */
+  t->parent_return_list = &(thread_current()->returned_children);
 
   /* Add to run queue. */
   thread_unblock (t);

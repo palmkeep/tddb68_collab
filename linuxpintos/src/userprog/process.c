@@ -40,16 +40,20 @@ struct start_process_info
 tid_t
 process_execute (const char* command_line) 
 {
+  printf("Starting process_exec");
+
   char command_line_copy[sizeof(command_line)];
-  strlcpy (command_line_copy, command_line, sizeof(command_line));
+  strlcpy (command_line_copy, command_line, PGSIZE);
 
   int it = 0;
-  while (command_line_copy[it] != ' ' || command_line_copy[it] != '\0')
+  printf("\n");
+  while (command_line[it] != ' ' && command_line[it] != '\0')
   {
     it++;
   }
+
   char* args = NULL;
-  if (command_line_copy[it] != ' ')
+  if (command_line_copy[it] == ' ')
   {
     command_line_copy[it] = '\0';
     args = &command_line_copy[it+1];
@@ -64,7 +68,8 @@ process_execute (const char* command_line)
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
+  //strlcpy (fn_copy, file_name, (it+1)*sizeof(char));
+  strlcpy (fn_copy, command_line, (it+1)*sizeof(char));
 
   /* Create a new thread to execute FILE_NAME. */
   struct semaphore sp;
@@ -75,7 +80,9 @@ process_execute (const char* command_line)
   new_process_info.waiting = true;
   new_process_info.sp = &sp;
   new_process_info.args = args;
+  new_process_info.return_list = &(thread_current()->returned_children);
 
+  printf("Calling thread_create");
   tid = thread_create (file_name, PRI_DEFAULT, start_process, &new_process_info);
 
   sema_down(&sp);
@@ -90,6 +97,7 @@ process_execute (const char* command_line)
 static void
 start_process (void* info)
 {
+  printf("Starting stack alloc \n");
   struct start_process_info* args = (struct start_process_info*)info;
   char *file_name = args->file_name;
   struct intr_frame if_;
@@ -113,6 +121,7 @@ start_process (void* info)
   if (!success) 
     thread_exit ();
 
+  printf("Stack-alloc: load successful\n");
   unsigned arg_str_len = (unsigned)sizeof(args);
   unsigned quad_offset = arg_str_len % 4;
 
@@ -203,7 +212,7 @@ process_wait (tid_t child_tid UNUSED)
       sema_down(&sema);
     }
     struct list_elem* e;
-   for (	e = list_begin (&returned_children);
+    for(e = list_begin (&returned_children);
   	e != list_end (&returned_children);
   	e = list_next(e))
     {
@@ -214,7 +223,8 @@ process_wait (tid_t child_tid UNUSED)
       }
     }
   }
-
+  printf("returning your child my dear \n");
+  //t->waiting_for_child_id = NULL;
   return returned_child->id;
 }
 
@@ -227,8 +237,14 @@ process_exit (void)
   {
     list_remove ( &(cur->waiting_elem) ); //Might help so elements aren't still in waiting list
   }
-  uint32_t *pd;
 
+  if (cur->tid == (cur->parent)->waiting_for_child_id)
+  {
+    sema_up( (cur->parent)->waiting_for_child );
+  }
+
+
+  uint32_t *pd;
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
