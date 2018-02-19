@@ -20,6 +20,13 @@ enum thread_status
     THREAD_DYING        /* About to be destroyed. */
   };
 
+struct parent_child_rel
+{
+  bool parent_alive;
+  int alive_count;
+  struct list* return_list;
+};
+
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
 typedef int tid_t;
@@ -107,10 +114,12 @@ struct thread
 
     /* Parent-Child waiting and returns */
     struct thread* parent;
-    struct list returned_children;
+    struct list* returned_children;
     tid_t waiting_for_child_id;
     struct semaphore* waiting_for_child;
-    struct list* parent_return_list;
+
+    struct parent_child_rel* parent_rel;
+    struct parent_child_rel* child_rel;
 
     /* Thread sleep implementation  */
     int64_t wake_tick;

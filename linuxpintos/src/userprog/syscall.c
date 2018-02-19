@@ -44,6 +44,7 @@ call_exit(struct intr_frame *f)
 
   printf("I called exit\n");
   struct thread* parent = thread_current()->parent;
+  struct thread* t = thread_current();
   int status = *(int*)(f->esp+4);
   f->eax = status;    // Might break horribly
 		      // Very unsure seems right
@@ -52,12 +53,12 @@ call_exit(struct intr_frame *f)
   printf("HAX\n");
   struct child_return_struct* child_return = malloc(sizeof(struct child_return_struct));
   printf("HAX\n");
-  child_return->id = thread_current()->tid;
+  child_return->id = t->tid;
   child_return->returned_val = status;
   printf("HAX\n");
-  if ( list_is_interior( list_begin(thread_current()->parent_return_list) ) )
+  if ( list_is_interior( list_begin( t->parent_rel->return_list ) ) )
   {
-    list_push_back( &(parent->returned_children), &child_return->elem );
+    list_push_back( t->parent_rel->return_list, &child_return->elem );
   }
   printf("HAX\n");
 

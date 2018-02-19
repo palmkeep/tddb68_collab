@@ -183,7 +183,7 @@ process_wait (tid_t child_tid UNUSED)
 {
   struct thread* t = thread_current();
   t->waiting_for_child_id = child_tid;
-  struct list returned_children = t->returned_children;
+  struct list returned_children = *(t->returned_children);
 
   bool child_returned = false;
   struct child_return_struct* returned_child;

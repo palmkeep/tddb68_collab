@@ -10,8 +10,8 @@ struct start_process_info
   bool waiting;
   struct semaphore* sp;
   char* args;
-  struct list* return_list;
 };
+
 
 tid_t process_execute (const char *file_name);
 int process_wait (tid_t);
