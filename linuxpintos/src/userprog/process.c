@@ -65,25 +65,35 @@ process_execute (const char* command_line)
   strlcpy (fn_copy, command_line, (it+1)*sizeof(char));
 
   /* Create a new thread to execute FILE_NAME. */
-  struct semaphore sp;
-  sema_init (&sp, 0);
+  struct semaphore p_sp;
+  sema_init (&p_sp, 0);
+  struct semaphore c_sp;
+  sema_init (&c_sp, 0);
 
   struct start_process_info new_process_info;
   new_process_info.file_name = fn_copy;
   new_process_info.waiting = true;
-  new_process_info.sp = &sp;
+  new_process_info.p_sp = &p_sp;
+  new_process_info.c_sp = &c_sp;
   new_process_info.args = args;
-  //new_process_info.return_list = &(thread_current()->returned_children);
 
-  printf("Calling thread_create\n");
+  printf("Thread_create entrance\n");
   tid = thread_create (file_name, PRI_DEFAULT, start_process, &new_process_info);
+  printf("Thread_create exit\n");
 
-  sema_down(&sp);
+  sema_down(&p_sp);
 
-  printf("Process_exec entrance\n");
 
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+  {
+    palloc_free_page (fn_copy);
+  }
+  else
+  {
+
+  }
+
+  printf("Process_exec exit\n");
   return tid;
 }
 
@@ -105,9 +115,17 @@ start_process (void* info)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-  if ( args->waiting )
+  if (args->waiting)
   {
-    sema_up(args->sp);   // Wake waiting parent-thread
+    if (success)
+    {
+      sema_up(args->p_sp);   // Wake waiting parent-thread
+      //sema_down(args->c_sp);   // Wake waiting parent-thread
+    }
+    else
+    {
+
+    }
   }
 
 
@@ -152,15 +170,22 @@ start_process (void* info)
   *(char**)(if_.esp+8) = &arg_list;
 
 
-  struct thread* cur = thread_current();
+  struct thread* cur = thread_current();  //Does work inside start_process()
   cur->child_rel = malloc( sizeof(struct parent_child_rel) );
-
-  printf("Start_process Thread_current child_rel ptr: %p\n", cur->child_rel);
-  //(cur->child_rel).parent_alive = true;
-  //(cur->child_rel).alive_count = 1;
-
-  cur->returned_children = malloc( sizeof( struct list ) );
+  
+  printf("Allocating space for $returned_children\n");
+  cur->returned_children = (struct list*)( malloc(sizeof( struct list )) );
+  printf("$returned_children gets pointer: %p\n", cur->returned_children);
   list_init( cur->returned_children );
+
+  printf("Start malloc");
+  cur->child_rel = (struct parent_child_rel*)( malloc(sizeof(struct parent_child_rel)) );
+  printf("Start_process Thread_current child_rel ptr: %p\n", cur->child_rel);
+  printf("Exit malloc");
+
+  cur->child_rel->parent_alive = true;
+  cur->child_rel->alive_count = 1;
+  cur->child_relation_exists = true;
 
 
   printf("Start_process exit \n");
@@ -190,10 +215,13 @@ process_wait (tid_t child_tid UNUSED)
 
   struct thread* t = thread_current();
   t->waiting_for_child_id = child_tid;
+
+  printf("Dereferencing pointer at: %p\n", t->returned_children);
   struct list returned_children = *(t->returned_children);
 
   bool child_returned = false;
   struct child_return_struct* returned_child;
+  printf("Test3\n");
 
   struct list_elem* e;
   for (	e = list_begin (&returned_children);
@@ -206,6 +234,7 @@ process_wait (tid_t child_tid UNUSED)
       break;
     }
   }
+  printf("Test4\n");
 
   if (!child_returned)
   {
@@ -508,7 +537,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  printf("Process_exit exit\n");
+  printf("Load exit\n");
   file_close (file);
   return success;
 }

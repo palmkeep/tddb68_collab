@@ -291,11 +291,11 @@ thread_create (const char *name, int priority,
 
   /* Pass parent-child vars */
   //t->parent_return_list = &(thread_current()->returned_children);  // Is now contained in the struct $parent_facing_rel
-  if (thread_current()->child_relation_exists)
-  {
-    t->parent_rel = thread_current()->child_rel;
-    t->parent_relation_exists;
-  }
+//  if (thread_current()->child_relation_exists)
+//  {
+//    t->parent_rel = thread_current()->child_rel;
+//    t->parent_relation_exists;
+//  }
 
 
   /* Add to run queue. */
@@ -550,38 +550,17 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-<<<<<<< HEAD
   printf("HELLO1HELLO\n");
-=======
 
   printf("1\n");
->>>>>>> 0591df7ba1f44b30b8709840687c46832e91598c
   struct parent_child_rel parent_relation = *(t->child_rel);
   if (t->parent_relation_exists)
   {
     parent_relation.alive_count += 1;
   }
 
-<<<<<<< HEAD
-  printf("HELLO2HELLO\n");
-  t->child_rel = malloc(sizeof(struct parent_child_rel));
-
-  printf("HELLO HELLO\n");
-  struct parent_child_rel child_relation = *(t->child_rel);
-  child_relation.parent_alive = true;
-  child_relation.alive_count = 1;
-  t->child_relation_exists = true;
-
-  printf("HELLO HELLO\n");
-  //t->returned_children = (struct list*)malloc(sizeof(struct list));
-  t->returned_children = malloc(sizeof(struct list));
-  list_init( t->returned_children );
-=======
-
-//  thread_current()->parent_rel = 
 
   printf("Init_thread exit\n");
->>>>>>> 0591df7ba1f44b30b8709840687c46832e91598c
 }
 
 

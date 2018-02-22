@@ -8,7 +8,8 @@ struct start_process_info
 {
   char* file_name;
   bool waiting;
-  struct semaphore* sp;
+  struct semaphore* p_sp;
+  struct semaphore* c_sp;
   char* args;
 };
 
