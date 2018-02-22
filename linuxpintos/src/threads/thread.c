@@ -56,21 +56,6 @@ struct kernel_thread_frame
 
 
 
-/* Thread waiting state implementation 
-void thread_add_to_waiting (struct thread* f, int64_t tick)
-{
-  struct waiting_thread_list_elem waiting_thread;
-  waiting_thread.thread = f;
-  waiting_thread.ready_tick = tick;
-
-  list_push_back(&waiting_list, &waiting_thread.elem );
-  schedule();
-}
-*/
-
-
-
-
 
 #ifdef USERPROG
 /* Filedescriptor manager */
@@ -162,6 +147,8 @@ thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
+  printf("Thread_init entrance\n");
+
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&waiting_list);
@@ -176,6 +163,7 @@ thread_init (void)
 
   initial_thread->tracker_avail_ind = 0;
   memset(initial_thread->file_tracker, '\0', sizeof(initial_thread->file_tracker));
+  printf("Thread_init exit\n");
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -184,6 +172,7 @@ void
 thread_start (void) 
 {
   /* Create the idle thread. */
+  printf("Thread_start entrance\n");
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
@@ -193,6 +182,7 @@ thread_start (void)
 
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down (&idle_started);
+  printf("Thread_start exit\n");
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -230,9 +220,7 @@ thread_tick (void)
     if(it->wake_tick <= timer_ticks() && e != NULL && e->prev != NULL && e->next != NULL)
     {
       thread_unblock( it );
-      printf("Removing waiting_elem");
       list_remove( &(it->waiting_elem) );
-      printf("Removed waiting_elem\n");
     }
   }
 
@@ -266,6 +254,7 @@ tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux) 
 {
+  printf("Thread_create entrance\n");
   /* thread_current() : Parent
    * t		      : Child
    * */
@@ -311,6 +300,8 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+
+  printf("Thread_create exit\n");
 
   return tid;
 }
@@ -391,6 +382,7 @@ thread_tid (void)
 void
 thread_exit (void) 
 {
+  printf("Thread_exit entrance");
   ASSERT (!intr_context ());
   printf("Thread_exit");
 
@@ -404,12 +396,13 @@ thread_exit (void)
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
+  printf("Thread_exit exit");
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void
-thread_yield (void) 
+thread_yield (void)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
@@ -544,10 +537,12 @@ is_thread (struct thread *t)
 static void
 init_thread (struct thread *t, const char *name, int priority)
 {
+  printf("Init_thread entrace\n");
   ASSERT (t != NULL);
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
 
+  printf("0\n");
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
@@ -555,13 +550,19 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
+<<<<<<< HEAD
   printf("HELLO1HELLO\n");
+=======
+
+  printf("1\n");
+>>>>>>> 0591df7ba1f44b30b8709840687c46832e91598c
   struct parent_child_rel parent_relation = *(t->child_rel);
   if (t->parent_relation_exists)
   {
     parent_relation.alive_count += 1;
   }
 
+<<<<<<< HEAD
   printf("HELLO2HELLO\n");
   t->child_rel = malloc(sizeof(struct parent_child_rel));
 
@@ -575,7 +576,14 @@ init_thread (struct thread *t, const char *name, int priority)
   //t->returned_children = (struct list*)malloc(sizeof(struct list));
   t->returned_children = malloc(sizeof(struct list));
   list_init( t->returned_children );
+=======
+
+//  thread_current()->parent_rel = 
+
+  printf("Init_thread exit\n");
+>>>>>>> 0591df7ba1f44b30b8709840687c46832e91598c
 }
+
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
    returns a pointer to the frame's base. */

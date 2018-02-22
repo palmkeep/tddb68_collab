@@ -20,18 +20,11 @@
 
 #include "threads/synch.h"
 
-
 static thread_func start_process NO_RETURN;
+
+
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
-/*
-struct start_process_info
-{
-  char* file_name;
-  bool waiting;
-  struct semaphore* sp;
-};
-*/
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -40,7 +33,7 @@ struct start_process_info
 tid_t
 process_execute (const char* command_line) 
 {
-  printf("Starting process_exec");
+  printf("Process_exec entrance\n");
 
   char command_line_copy[sizeof(command_line)];
   strlcpy (command_line_copy, command_line, PGSIZE);
@@ -82,10 +75,12 @@ process_execute (const char* command_line)
   new_process_info.args = args;
   //new_process_info.return_list = &(thread_current()->returned_children);
 
-  printf("Calling thread_create");
+  printf("Calling thread_create\n");
   tid = thread_create (file_name, PRI_DEFAULT, start_process, &new_process_info);
 
   sema_down(&sp);
+
+  printf("Process_exec entrance\n");
 
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
@@ -97,7 +92,7 @@ process_execute (const char* command_line)
 static void
 start_process (void* info)
 {
-  printf("Starting stack alloc \n");
+  printf("Start_process entrance \n");
   struct start_process_info* args = (struct start_process_info*)info;
   char *file_name = args->file_name;
   struct intr_frame if_;
@@ -157,8 +152,18 @@ start_process (void* info)
   *(char**)(if_.esp+8) = &arg_list;
 
 
+  struct thread* cur = thread_current();
+  cur->child_rel = malloc( sizeof(struct parent_child_rel) );
+
+  printf("Start_process Thread_current child_rel ptr: %p\n", cur->child_rel);
+  //(cur->child_rel).parent_alive = true;
+  //(cur->child_rel).alive_count = 1;
+
+  cur->returned_children = malloc( sizeof( struct list ) );
+  list_init( cur->returned_children );
 
 
+  printf("Start_process exit \n");
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -181,6 +186,8 @@ start_process (void* info)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  printf("Process_wait entrance \n");
+
   struct thread* t = thread_current();
   t->waiting_for_child_id = child_tid;
   struct list returned_children = *(t->returned_children);
@@ -223,7 +230,7 @@ process_wait (tid_t child_tid UNUSED)
       }
     }
   }
-  printf("returning your child my dear \n");
+  printf("Process_wait exit\n");
   //t->waiting_for_child_id = NULL;
   return returned_child->id;
 }
@@ -232,6 +239,7 @@ process_wait (tid_t child_tid UNUSED)
 void
 process_exit (void)
 {
+  printf("Process_exit entrance\n");
   struct thread *cur = thread_current ();
   if ( list_is_interior(&(cur->waiting_elem)) ) 
   {
@@ -261,6 +269,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  printf("Process_exit exit\n");
 }
 
 /* Sets up the CPU for running user code in the current
@@ -355,6 +364,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 bool
 load (const char *file_name, void (**eip) (void), void **esp) 
 {
+  printf("Load entrance\n");
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -498,6 +508,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
+  printf("Process_exit exit\n");
   file_close (file);
   return success;
 }
@@ -615,6 +626,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp) 
 {
+  printf("Setup_stack entrance\n");
   uint8_t *kpage;
   bool success = false;
 
@@ -627,6 +639,7 @@ setup_stack (void **esp)
       else
         palloc_free_page (kpage);
     }
+  printf("Setup_stack exit\n");
   return success;
 }
 
