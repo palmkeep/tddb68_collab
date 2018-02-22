@@ -302,7 +302,12 @@ thread_create (const char *name, int priority,
 
   /* Pass parent-child vars */
   //t->parent_return_list = &(thread_current()->returned_children);  // Is now contained in the struct $parent_facing_rel
-//  t->parent_rel = thread_current()->child_rel;
+  if (thread_current()->child_relation_exists)
+  {
+    t->parent_rel = thread_current()->child_rel;
+    t->parent_relation_exists;
+  }
+
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -550,18 +555,26 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
+  printf("HELLO1HELLO\n");
   struct parent_child_rel parent_relation = *(t->child_rel);
-  parent_relation.alive_count += 1;
+  if (t->parent_relation_exists)
+  {
+    parent_relation.alive_count += 1;
+  }
 
+  printf("HELLO2HELLO\n");
   t->child_rel = malloc(sizeof(struct parent_child_rel));
 
+  printf("HELLO HELLO\n");
   struct parent_child_rel child_relation = *(t->child_rel);
   child_relation.parent_alive = true;
   child_relation.alive_count = 1;
+  t->child_relation_exists = true;
 
+  printf("HELLO HELLO\n");
   //t->returned_children = (struct list*)malloc(sizeof(struct list));
   t->returned_children = malloc(sizeof(struct list));
-  list_init( (t->returned_children) );
+  list_init( t->returned_children );
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

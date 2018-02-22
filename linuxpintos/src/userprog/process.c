@@ -80,7 +80,7 @@ process_execute (const char* command_line)
   new_process_info.waiting = true;
   new_process_info.sp = &sp;
   new_process_info.args = args;
-  new_process_info.return_list = &(thread_current()->returned_children);
+  //new_process_info.return_list = &(thread_current()->returned_children);
 
   printf("Calling thread_create");
   tid = thread_create (file_name, PRI_DEFAULT, start_process, &new_process_info);

@@ -118,7 +118,10 @@ struct thread
     tid_t waiting_for_child_id;
     struct semaphore* waiting_for_child;
 
+    bool parent_relation_exists;
     struct parent_child_rel* parent_rel;
+
+    bool child_relation_exists;
     struct parent_child_rel* child_rel;
 
     /* Thread sleep implementation  */
