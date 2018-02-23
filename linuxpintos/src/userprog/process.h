@@ -11,6 +11,8 @@ struct start_process_info
   struct semaphore* p_sp;
   struct semaphore* c_sp;
   char* args;
+  struct parent_child_rel* rel;
+  struct thread* parent;
 };
 
 

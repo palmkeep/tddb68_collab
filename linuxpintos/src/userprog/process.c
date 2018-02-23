@@ -70,12 +70,22 @@ process_execute (const char* command_line)
   struct semaphore c_sp;
   sema_init (&c_sp, 0);
 
+  // Create a child_rel for main thread
+  if (thread_current()->child_rel == NULL)
+  {
+    thread_current()->child_rel = (struct parent_Child_rel*)( malloc(sizeof(struct parent_child_rel)) );
+    thread_current()->child_rel->parent_alive = true;
+    thread_current()->child_rel->alive_count = 1;
+    thread_current()->child_relation_exists = true;
+  }
   struct start_process_info new_process_info;
   new_process_info.file_name = fn_copy;
   new_process_info.waiting = true;
   new_process_info.p_sp = &p_sp;
   new_process_info.c_sp = &c_sp;
   new_process_info.args = args;
+  new_process_info.rel = thread_current()->child_rel;
+  new_process_info.parent = thread_current();
 
   printf("Thread_create entrance\n");
   tid = thread_create (file_name, PRI_DEFAULT, start_process, &new_process_info);
@@ -171,11 +181,49 @@ start_process (void* info)
 
 
   struct thread* cur = thread_current();  //Does work inside start_process()
-  cur->child_rel = malloc( sizeof(struct parent_child_rel) );
+
+
   
+  // Set proper parent_rel for thread
+  cur->parent_rel = args->rel;
+  printf("args->rel pointer: %p\n", args->rel);
+  if (args->rel != NULL)
+  {
+    (*(cur->parent_rel)).alive_count += 1;
+  }
+
+  // Init. $returned_children
+  printf("Malloc $returned_children\n");
+  lock_acquire( &(cur->returned_children_list_lock) );
+  cur->returned_children = (struct list*)( malloc(sizeof( struct list )) );
+  printf("$returned_children gets ptr: %p\n", cur->returned_children);
+  list_init( cur->returned_children );
+  lock_release( &(cur->returned_children_list_lock) );
+
+  // Init. $parent_rel
+  cur->parent = args->parent;
+
+  // Init. $child_rel
+  printf("Malloc $child_rel\n");
+  cur->child_rel = (struct parent_child_rel*)( malloc(sizeof( struct parent_child_rel )) );
+  printf("$child_rel gets ptr: %p\n", cur->child_rel);
+  printf("Set $child_rel vars:\n");
+
+  cur->child_rel->parent_alive = true;
+  cur->child_rel->alive_count = 1;
+
+  cur->child_relation_exists = true;
+  printf("$child_rel vars. set\n");
+
+
+
+  printf("Finished init. thread vars.\n");
+
+
+
+  /*
   printf("Allocating space for $returned_children\n");
   cur->returned_children = (struct list*)( malloc(sizeof( struct list )) );
-  printf("$returned_children gets pointer: %p\n", cur->returned_children);
   list_init( cur->returned_children );
 
   printf("Start malloc");
@@ -186,6 +234,7 @@ start_process (void* info)
   cur->child_rel->parent_alive = true;
   cur->child_rel->alive_count = 1;
   cur->child_relation_exists = true;
+  */
 
 
   printf("Start_process exit \n");
@@ -216,24 +265,45 @@ process_wait (tid_t child_tid UNUSED)
   struct thread* t = thread_current();
   t->waiting_for_child_id = child_tid;
 
+
+  printf("$returend_children ptr: %p\n", t->returned_children);
+  if (t->returned_children == NULL)
+  {
+    printf("Allocating list\n");
+    t->returned_children = (struct list*)( malloc(sizeof(struct list)) );
+    list_init(t->returned_children);
+  }
   printf("Dereferencing pointer at: %p\n", t->returned_children);
+
   struct list returned_children = *(t->returned_children);
 
   bool child_returned = false;
   struct child_return_struct* returned_child;
-  printf("Test3\n");
 
-  struct list_elem* e;
-  for (	e = list_begin (&returned_children);
-	e != list_end (&returned_children);
-	e = list_next(e))
+  printf("thread name: %s\n", t->name);
+  printf("Test3\n");
+  printf("Is list empty: %d\n", list_empty(&returned_children));
+  lock_acquire( &(t->returned_children_list_lock) );
+  if ( !list_empty(t->returned_children) )
   {
-    returned_child = list_entry(e, struct child_return_struct, elem);
-    if (returned_child->id == child_tid)
+    printf("List not empty. Begin iter.\n");
+    struct list_elem* e;
+    for (	e = list_begin (t->returned_children);
+  	e != list_end (t->returned_children);
+  	e = list_next(e))
     {
-      break;
+      printf("elem ptr: %p\n", e);
+      returned_child = list_entry(e, struct child_return_struct, elem);
+      if (returned_child->id == child_tid)
+      {
+        child_returned = true;
+        break;
+      }
     }
+    printf("elem ptr: %p\n", list_begin(t->returned_children));
   }
+  lock_release( &(t->returned_children_list_lock) );
+
   printf("Test4\n");
 
   if (!child_returned)
@@ -245,6 +315,7 @@ process_wait (tid_t child_tid UNUSED)
 
     if (!child_returned)
     {
+      printf("Wait for child\n");
       sema_down(&sema);
     }
     struct list_elem* e;
@@ -275,10 +346,13 @@ process_exit (void)
     list_remove ( &(cur->waiting_elem) ); //Might help so elements aren't still in waiting list
   }
 
-  if (cur->tid == (cur->parent)->waiting_for_child_id)
+  printf("sema_up parent:\n");
+  if (cur->parent != NULL && cur->tid == (cur->parent)->waiting_for_child_id)
   {
-    sema_up( (cur->parent)->waiting_for_child );
+    sema_up( (cur->parent)->waiting_for_child ); //Wake parent as the child has returned its status
   }
+  printf("sema_up parent finished\n");
+  
 
 
   uint32_t *pd;

@@ -382,21 +382,23 @@ thread_tid (void)
 void
 thread_exit (void) 
 {
-  printf("Thread_exit entrance");
+  printf("Thread_exit entrance\n");
   ASSERT (!intr_context ());
-  printf("Thread_exit");
 
+  struct thread* t = thread_current();
 #ifdef USERPROG
   process_exit ();
 #endif
+  printf("thread stat: %d\n", thread_current()->status);
 
   /* Just set our status to dying and schedule another process.
      We will be destroyed during the call to schedule_tail(). */
   intr_disable ();
-  thread_current ()->status = THREAD_DYING;
+  printf("thread stat: %d\n", thread_current()->status);
+  thread_current()->status = THREAD_DYING;
+  printf("Thread_exit exit\n");
   schedule ();
   NOT_REACHED ();
-  printf("Thread_exit exit");
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
@@ -550,15 +552,39 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  printf("HELLO1HELLO\n");
+  t->parent = NULL;
+  t->returned_children = NULL; // Ensure is NULL if not allocated (handles thread="main" which does not enter start_process()
+  lock_init( &(t->returned_children_list_lock) );
 
-  printf("1\n");
-  struct parent_child_rel parent_relation = *(t->child_rel);
-  if (t->parent_relation_exists)
-  {
-    parent_relation.alive_count += 1;
-  }
+  /*
 
+  printf("Init. thread vars.\n");
+
+  // Init. $returned_children
+  printf("Malloc $returned_children\n");
+  t->returned_children = (struct list*)( malloc(sizeof( struct list )) );
+  printf("$returned_children gets ptr: %p\n", t->returned_children);
+  list_init( t->returned_children );
+
+  // Init. $parent_rel
+  t->parent = NULL;
+
+  // Init. $child_rel
+  printf("Malloc $child_rel\n");
+  t->child_rel = (struct parent_child_rel*)( malloc(sizeof( struct parent_child_rel )) );
+  printf("$child_rel gets ptr: %p\n", t->child_rel);
+  printf("Set $child_rel vars:\n");
+
+  t->child_rel->parent_alive = true;
+  t->child_rel->alive_count = 1;
+
+  t->child_relation_exists = true;
+  printf("$child_rel vars. set\n");
+  */
+
+
+
+  printf("Finished init. thread vars.\n");
 
   printf("Init_thread exit\n");
 }
@@ -633,9 +659,7 @@ schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      printf("sched tail");
       palloc_free_page (prev);
-      printf("Freed");
     }
 }
 

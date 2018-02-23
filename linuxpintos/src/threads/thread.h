@@ -115,6 +115,7 @@ struct thread
     /* Parent-Child waiting and returns */
     struct thread* parent;
     struct list* returned_children;
+    struct lock returned_children_list_lock;
     tid_t waiting_for_child_id;
     struct semaphore* waiting_for_child;
 

@@ -42,25 +42,54 @@ call_exit(struct intr_frame *f)
    * value to the list mentioned in prev. sentence.
    * */
 
-  printf("I called exit\n");
+  printf("call_exit entrance\n");
   struct thread* parent = thread_current()->parent;
   struct thread* t = thread_current();
   int status = *(int*)(f->esp+4);
-  f->eax = status;    // Might break horribly
-		      // Very unsure seems right
+  f->eax = status;
   
   
-  printf("HAX\n");
-  struct child_return_struct* child_return = malloc(sizeof(struct child_return_struct));
-  printf("HAX\n");
+  struct child_return_struct* child_return = (struct child_return_struct*)( malloc(sizeof(struct child_return_struct)) );
   child_return->id = t->tid;
   child_return->returned_val = status;
-  printf("HAX\n");
-  if ( list_is_interior( list_begin( t->parent_rel->return_list ) ) )
+
+  struct list* return_list = NULL;
+
+  printf("thread ptr: %p\n", t);
+  printf("parent_rel ptr: %p\n", t->parent_rel);
+  printf("parent ptr: %p\n", t->parent);
+//  printf("return_list ptr: %p\n", t->parent_rel->return_list);
+  printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
+  if (t->parent == NULL)
   {
-    list_push_back( t->parent_rel->return_list, &child_return->elem );
+    printf("No ptr to parent\n"); 
   }
-  printf("HAX\n");
+  else if (t->parent != NULL && t->parent_rel == NULL )
+  {
+    printf("Set $return_list with new list\n");
+
+    lock_acquire( &(t->parent->returned_children_list_lock) );
+    t->parent->returned_children = (struct list *)( malloc(sizeof(struct list)) );
+    list_init(t->parent->returned_children);
+    printf("New list ptr: %p\n", t->parent->returned_children);
+    return_list = t->parent->returned_children; 
+    lock_release( &(t->parent->returned_children_list_lock) );
+
+  }
+  else
+  {
+    printf("Set $return_list with parent_rel\n");
+    return_list = t->parent_rel->return_list;
+  }
+
+  printf("Insert child_return into parents list:\n");
+  if (return_list != NULL) // Might want to remove if we do not need the sanity-check
+  {
+    printf("push child over\n");
+    list_push_back( return_list, &child_return->elem );
+  }
+
+  printf("Insert completed\n");
 
   /*
   if (thread_current()->tid == parent->waiting_for_child_id)
@@ -70,10 +99,10 @@ call_exit(struct intr_frame *f)
 
   printf("%s: exit(%d)\n", thread_current()->name, status);
 
-  process_exit();     // Free process resources
-  printf("HELLO");
+  //process_exit();     // Free process resources && sema_up parent
   thread_exit();
-  printf("HELLO");
+  printf("call_exit exit\n");
+
 }
 
 static void
