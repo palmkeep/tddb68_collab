@@ -346,7 +346,7 @@ process_exit (void)
     list_remove ( &(cur->waiting_elem) ); //Might help so elements aren't still in waiting list
   }
 
-  printf("sema_up parent:\n");
+  printf("sema_up parent . . . ");
   if (cur->parent != NULL && cur->tid == (cur->parent)->waiting_for_child_id)
   {
     sema_up( (cur->parent)->waiting_for_child ); //Wake parent as the child has returned its status

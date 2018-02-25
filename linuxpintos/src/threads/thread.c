@@ -385,17 +385,18 @@ thread_exit (void)
   printf("Thread_exit entrance\n");
   ASSERT (!intr_context ());
 
-  struct thread* t = thread_current();
 #ifdef USERPROG
   process_exit ();
 #endif
-  printf("thread stat: %d\n", thread_current()->status);
+  struct thread* t = thread_current();
 
   /* Just set our status to dying and schedule another process.
      We will be destroyed during the call to schedule_tail(). */
   intr_disable ();
   printf("thread stat: %d\n", thread_current()->status);
-  thread_current()->status = THREAD_DYING;
+  printf("Name: %s\nStatus: %d\nMagic: %u\nParPtr: %p\n", t->name, t->status, t->magic, t->parent);
+  printf("ParNom: %s\n", t->parent->name);
+  t->status = THREAD_DYING;
   printf("Thread_exit exit\n");
   schedule ();
   NOT_REACHED ();
