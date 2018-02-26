@@ -365,6 +365,13 @@ thread_current (void)
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
   ASSERT (is_thread (t));
+
+  
+  if (t->status != THREAD_RUNNING)
+  {
+     printf("Name: %s\nStatus: %d\nMagic: %u\nParPtr: %p\n", t->name, t->status, t->magic, t->parent);
+  }
+  
   ASSERT (t->status == THREAD_RUNNING);
 
   return t;
@@ -393,10 +400,13 @@ thread_exit (void)
   /* Just set our status to dying and schedule another process.
      We will be destroyed during the call to schedule_tail(). */
   intr_disable ();
+
   printf("thread stat: %d\n", thread_current()->status);
   printf("Name: %s\nStatus: %d\nMagic: %u\nParPtr: %p\n", t->name, t->status, t->magic, t->parent);
   printf("ParNom: %s\n", t->parent->name);
-  t->status = THREAD_DYING;
+
+  thread_current()->status = THREAD_DYING;
+
   printf("Thread_exit exit\n");
   schedule ();
   NOT_REACHED ();

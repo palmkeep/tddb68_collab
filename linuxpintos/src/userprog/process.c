@@ -23,7 +23,7 @@
 static thread_func start_process NO_RETURN;
 
 
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool load (const char* file_name, const char* cmd_line, void (**eip) (void), void **esp);
 
 
 /* Starts a new thread running a user program loaded from
@@ -118,12 +118,13 @@ start_process (void* info)
   struct intr_frame if_;
   bool success;
 
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (file_name, args->args, &if_.eip, &if_.esp);
 
   if (args->waiting)
   {
@@ -138,52 +139,16 @@ start_process (void* info)
     }
   }
 
-
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
 
+ 
   printf("Stack-alloc: load successful\n");
-  unsigned arg_str_len = (unsigned)sizeof(args);
-  unsigned quad_offset = arg_str_len % 4;
-
-  if_.esp -= arg_str_len;
-  strlcpy ((char*)(if_.esp), args->args, sizeof(args));
-  char* stri = (char*)if_.esp;
-  char* arg_list = (char*)if_.esp;
-  int number_args = 0;
-  while(*stri != '\0' )
-  {
-    if (*stri == ' ' && (*(stri+1) != '\0' || *(stri+1) == ' ')){
-      number_args++;
-    }
-    stri++;
-  }
-  if_.esp -= quad_offset;
   
-  *((char*)(if_.esp)+1) = '\0';
-  if_.esp -= 4;;
-
-  char* token = (char*)&if_.esp;
-  char* save_ptr;
-  int i = 1;
-  for (	token = strtok_r(args->args, " ", &save_ptr); token != NULL;
-	token = strtok_r(NULL, " ", &save_ptr))
-  {
-    *((char**)(if_.esp+(i*4))) = token;
-    i++;
-  }
-
-  if_.esp -= 12;
-  *(int*)(if_.esp+4) = number_args;
-  *(char**)(if_.esp+8) = &arg_list;
-
-
   struct thread* cur = thread_current();  //Does work inside start_process()
 
-
-  
   // Set proper parent_rel for thread
   cur->parent_rel = args->rel;
   printf("args->rel pointer: %p\n", args->rel);
@@ -214,6 +179,8 @@ start_process (void* info)
 
   cur->child_relation_exists = true;
   printf("$child_rel vars. set\n");
+
+  free(args);
 
 
 
@@ -465,7 +432,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp) 
+load (const char* file_name, const char* cmd_line, void (**eip) (void), void **esp) 
 {
   printf("Load entrance\n");
   struct thread *t = thread_current ();
@@ -485,6 +452,45 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (!setup_stack (esp)){
     goto done;
   }
+
+  printf("Manipulate stack . . .");
+  unsigned arg_str_len = (unsigned)sizeof(cmd_line);
+  unsigned quad_offset = arg_str_len % 4;
+
+  esp -= arg_str_len;
+  strlcpy ((char*)(esp), cmd_line, sizeof(cmd_line));
+  char* stri = (char*)(*esp);
+  char* arg_list = (char*)(*esp);
+  int number_args = 0;
+  while(*stri != '\0' )
+  {
+    if (*stri == ' ' && (*(stri+1) != '\0' || *(stri+1) == ' ')){
+      number_args++;
+    }
+    stri++;
+  }
+  esp -= quad_offset;
+  
+  *((char*)(esp)+1) = '\0';
+  esp -= 4;;
+
+  
+  char* token = (char*)(*esp);
+  char* save_ptr;
+  int tok_it = 1;
+  for (	token = strtok_r(stri, " ", &save_ptr); token != NULL;
+	token = strtok_r(NULL, " ", &save_ptr))
+  {
+    *((char**)(esp+(tok_it*4))) = token;
+    tok_it++;
+  }
+
+  *(size_t*)(*esp) = *(size_t*)(*esp) - 12;
+  *(int*)(*(esp+4)) = number_args;
+  *(char**)(esp+8) = arg_list;
+  printf("Stopp fiddeling stack.\n");
+
+
 
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
