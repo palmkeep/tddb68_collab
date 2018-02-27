@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #include "devices/timer.h"
 
+#include "threads/malloc.h"
 
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -71,8 +72,6 @@ void thread_add_to_waiting (struct thread* f, int64_t tick)
 
 #ifdef USERPROG
 /* Filedescriptor manager */
-
-//avail_id set in thread_init()
 
 int add_file_to_fd(struct thread* curr_thread, char* filename)
 {
@@ -159,7 +158,7 @@ thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  printf("in thread_init");
+  printf("[thread_init entrance] . . . ");
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&waiting_list);
@@ -172,6 +171,8 @@ thread_init (void)
 
   initial_thread->tracker_avail_ind = 0;
   memset(initial_thread->file_tracker, '\0', sizeof(initial_thread->file_tracker));
+
+  printf("[thread_init exit]\n");
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -179,6 +180,8 @@ thread_init (void)
 void
 thread_start (void) 
 {
+  printf("[thread_start entrance] . . . ");
+
   /* Create the idle thread. */
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
@@ -189,6 +192,8 @@ thread_start (void)
 
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down (&idle_started);
+
+  printf("[thread_start exit]\n");
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -258,8 +263,9 @@ thread_print_stats (void)
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
 thread_create (const char *name, int priority,
-               thread_func *function, void *aux) 
+               thread_func *function, void *shared_info) 
 {
+  printf("[thread_create entrance] . . . ");
   struct thread *t;
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
@@ -281,7 +287,7 @@ thread_create (const char *name, int priority,
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
   kf->function = function;
-  kf->aux = aux;
+  kf->aux = shared_info;
 
   /* Stack frame for switch_entry(). */
   ef = alloc_frame (t, sizeof *ef);
@@ -291,9 +297,57 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
 
+  /* Init thread variables from parent */
+  struct start_process_info* sh = shared_info;
+
+
+  struct thread* cur = thread_current();
+  /* Relationship with parent */
+
+  if (cur->c_rel == NULL)	// Create a child relation for parent thread if none exists
+  {
+    cur->c_rel = (struct thread_relation*)( malloc(sizeof(struct thread_relation)) );
+    cur->c_rel->parent_alive  = true;
+    cur->c_rel->alive_count   = 1;
+    cur->c_rel->parent	      = cur;
+    cur->c_rel->p_sema	      = (struct semaphore*)( malloc(sizeof(struct semaphore)) );
+    sema_init(cur->c_rel->p_sema, 0);
+    cur->return_lock   = (struct lock*)( malloc(sizeof(struct lock)) );
+    cur->c_rel->return_lock = cur->return_lock;
+    lock_init(cur->c_rel->return_lock);
+
+    if (cur->returned_children == NULL)
+    {
+      cur->returned_children = (struct list*)( malloc(sizeof(struct list)) );
+      list_init(cur->returned_children);
+    }
+    cur->c_rel->return_list = cur->returned_children;
+  }
+  t->p_rel = cur->c_rel;      // Set childs parent relation to parents child relation
+
+  /* Relationship with children */
+  t->returned_children = (struct list*)( malloc(sizeof(struct list)) );
+  list_init( t->returned_children );
+
+  t->c_rel = (struct thread_relation*)( malloc(sizeof(struct thread_relation)) );
+  t->c_rel->parent_alive  = true;
+  t->c_rel->alive_count	  = 1;
+  t->c_rel->parent	  = t;
+  t->c_rel->p_sema	  = &t->awaiting_child;
+  t->c_rel->return_list	  = t->returned_children;
+
+  sema_init(&t->awaiting_child, 0);
+
+
+  t->c_rel->return_lock	  = (struct lock*)( malloc(sizeof(struct lock)) );
+  lock_init(t->c_rel->return_lock);
+  t->c_rel->return_list	  = t->returned_children;
+
+
   /* Add to run queue. */
   thread_unblock (t);
 
+  printf("[thread_create] exit\n");
   return tid;
 }
 
@@ -535,6 +589,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

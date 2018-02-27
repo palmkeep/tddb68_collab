@@ -33,6 +33,39 @@ typedef int tid_t;
 /* File tracker */
 #define LEN_FILE_LIST 130
 
+/* Help structures*/
+
+struct thread_relation
+{
+  bool parent_alive;
+  struct thread* parent;
+  struct semaphore* p_sema;
+  int alive_count;
+  tid_t awaited_tid;
+  struct lock* return_lock;
+  struct list* return_list;
+};
+
+
+struct child_return
+{
+  tid_t tid;
+  int returned_val;
+  struct list_elem elem;
+};
+
+
+/* Waiting thread */
+struct waiting_thread_list_elem
+{
+  struct list_elem elem;
+  struct thread* thread;
+  int64_t num_ticks;
+  int64_t start_tick;
+};
+
+
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -104,9 +137,21 @@ struct thread
     int tracker_avail_ind;
     struct file* file_tracker[LEN_FILE_LIST];
 
-
+    /* Waiting list */
     int64_t wake_tick;
     struct list_elem waiting_elem;
+
+    /* Parent<->child relationship */
+    struct thread_relation* p_rel;
+    struct thread_relation* c_rel;
+
+    struct lock* return_lock;
+    struct list* returned_children;
+
+    tid_t awaited_child_tid;
+    struct semaphore awaiting_child;
+
+
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -159,18 +204,6 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
-
-
-/* Waiting thread */
-struct waiting_thread_list_elem
-{
-  struct list_elem elem;
-  struct thread* thread;
-  int64_t num_ticks;
-  int64_t start_tick;
-};
-
 
 void thread_add_to_waiting (struct thread* f, int64_t wake_tick);
 

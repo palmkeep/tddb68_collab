@@ -1,4 +1,7 @@
 ./linuxpintos/src/examples/
+./linuxpintos/src/utils/
 ./linuxpintos/src/tests/userprog/lib/
 
 *.o
+*.d
+

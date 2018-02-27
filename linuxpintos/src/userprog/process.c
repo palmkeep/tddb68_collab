@@ -17,6 +17,9 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
+
+#include "threads/synch.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -26,8 +29,9 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name) 
+process_execute (const char* command_line) 
 {
+  printf("[process_execute entrance] . . . ");
   char *fn_copy;
   tid_t tid;
 
@@ -36,23 +40,66 @@ process_execute (const char *file_name)
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
+
+  int it = 0;
+  while (command_line[it] != ' ' && command_line[it] != '\0') { it++; }
+  strlcpy (fn_copy, command_line, (it+1)*sizeof(char));
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+
+  struct semaphore* p_sp = (struct semaphore*)( malloc(sizeof(struct semaphore)) );
+  sema_init (p_sp, 0);
+  struct semaphore* c_sp = (struct semaphore*)( malloc(sizeof(struct semaphore)) );
+  sema_init (c_sp, 0);
+
+  struct start_process_info* sh = (struct start_process_info*)( malloc(sizeof(struct start_process_info)));
+  sh->file_name = (char*)( malloc(sizeof(command_line)*sizeof(char)) );
+  sh->file_name = fn_copy;
+  sh->cmd_line = (char*)( malloc(sizeof(command_line)*sizeof(char)) );
+  strlcpy( sh->cmd_line, command_line, sizeof(command_line)*sizeof(char) );
+  sh->p_sp = p_sp;
+  sh->c_sp = c_sp;
+  sh->p_ptr = thread_current();
+
+  char file_name[16];
+  int i=0;
+  for (; i<16 ; i++)
+  {
+    (file_name)[i] = (sh->file_name)[i];
+  }
+
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, sh);
+
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+  {
+    palloc_free_page (fn_copy);
+    return TID_ERROR; // FAILURE TO thread_create()
+  }
+
+
+  sema_down(p_sp);    // Wait for child to load
+  if (sh->c_status == TID_ERROR)
+  {
+    palloc_free_page (fn_copy);
+    return TID_ERROR;
+  }
+
+
+  printf("[process_execute exit]\n");
   return tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *shared_info)
 {
-  char *file_name = file_name_;
+  printf("[start_process] entrance . . . ");
+
+  struct start_process_info* sh = (struct start_process_info*)shared_info;
   struct intr_frame if_;
   bool success;
+  char* file_name = sh->file_name;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -61,11 +108,22 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  struct thread* t = thread_current();
+  if (t->p_rel->parent_alive)
+  {
+    printf("waking parent ");
+    sema_up(sh->p_sp);
+  }
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
 
+  free(shared_info);
+
+
+  printf("[start_process exit]\n");
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -88,14 +146,63 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-    while(true){} // DEBUG
-//  return -1;
+  printf("[process_wait] entrance. . . ");
+
+  struct thread* cur = thread_current();
+  bool child_returned = false;
+  struct child_return* returned_child;
+
+  cur->c_rel->awaited_tid = child_tid;
+  if ( !list_empty(cur->returned_children) )
+  {
+    lock_acquire( cur->return_lock ); 
+    struct list_elem* e;
+    for ( e = list_begin(cur->returned_children);
+	  e != list_end(cur->returned_children);
+	  e = list_next(e)
+	)
+    {
+      returned_child = list_entry(e, struct child_return, elem);
+      if (returned_child->tid == child_tid)
+      {
+	child_returned = true;
+	break;
+      }
+    }
+    lock_release( cur->return_lock );
+  }
+
+  if (!child_returned)
+  {
+    sema_init( &cur->awaiting_child, 0); // Might be wonky as it's initiated elsewhere
+    sema_down( &cur->awaiting_child );
+
+    struct list_elem* e;
+    lock_acquire( cur->return_lock );
+    for ( e = list_begin(cur->returned_children);
+	  e != list_end(cur->returned_children);
+	  e = list_next(e)
+	)
+    {
+      returned_child = list_entry(e, struct child_return, elem);
+      if (returned_child->tid == child_tid)
+      {
+	child_returned = true;
+	break;
+      }
+    }
+    lock_release( cur->return_lock );
+  }
+
+  printf("[process_wait] exit \n");
 }
 
 /* Free the current process's resources. */
 void
 process_exit (void)
 {
+  printf("[process_exit] entrance . . . ");
+
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
@@ -115,6 +222,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  printf("[process_exit] exit\n");
 }
 
 /* Sets up the CPU for running user code in the current

@@ -7,6 +7,8 @@
 //Our imports
 #include "threads/init.h"
 
+#include "userprog/process.h"
+
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 
@@ -23,13 +25,42 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+static void
+call_exec(struct intr_frame* f)
+{
+  const char* cmd_line = *(char**)(f->esp+4); // No error correction  
+  tid_t pid = process_execute(cmd_line);
+
+  if (pid == TID_ERROR) { f->eax = -1; }
+  else			{ f->eax = pid;}
+}
+
 /* Sys-call specific functions */
 
 static void 
 call_exit(struct intr_frame *f)
 {
   int status = *(int*)(f->esp+4);
-  f->eax = status;    // Might break horribly
+  f->eax = status;
+
+  struct thread* cur = thread_current();
+  struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
+  child_return->tid = cur->tid;
+  child_return->returned_val = status;
+
+  /* Add current childs return value to parents return list */
+  if (cur->p_rel->parent_alive)
+  {
+    lock_acquire(cur->p_rel->return_lock);
+    struct list* return_list = cur->p_rel->return_list;
+    list_push_back(return_list, &child_return->elem);
+    lock_release(cur->p_rel->return_lock);
+    sema_up( cur->p_rel->p_sema );
+  }
+
+  cur->p_rel->alive_count -= 1;
+
+
   thread_exit();
 }
 
@@ -143,6 +174,10 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   switch (syscall_nr)
   {
+    case SYS_EXEC:
+      call_exec(f);
+      break;
+
     case SYS_HALT:
       power_off();
       break;
