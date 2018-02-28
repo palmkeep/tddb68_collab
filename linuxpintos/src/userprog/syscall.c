@@ -8,6 +8,7 @@
 #include "threads/init.h"
 
 #include "userprog/process.h"
+#include "userprog/pagedir.h"
 
 #include "filesys/filesys.h"
 #include "filesys/file.h"
@@ -25,13 +26,24 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+static bool
+check_ptr(void* ptr)
+{
+  uint32_t* pd = thread_current()->pagedir;
+  if ( NULL == pagedir_get_page(pd, ptr) )
+    return false;
+  else
+    return true;
+}
+
+
 static void
 call_exec(struct intr_frame* f)
 {
   const char* cmd_line = *(char**)(f->esp+4); // No error correction  
   tid_t pid = process_execute(cmd_line);
 
-  if (pid == TID_ERROR) { f->eax = -1; }
+  if (pid == TID_ERROR) { f->eax =  -1;}
   else			{ f->eax = pid;}
 }
 
@@ -41,25 +53,35 @@ static void
 call_exit(struct intr_frame *f)
 {
   //printf("[call_exit] entrance . . . ");
-  int status = *(int*)(f->esp+4);
-  f->eax = status;
 
+  int status;
   struct thread* cur = thread_current();
-  struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
-  child_return->tid = cur->tid;
-  child_return->returned_val = status;
-
-  /* Add current childs return value to parents return list */
-  if (cur->p_rel->parent_alive)
+  if ( check_ptr( (f->esp+4) ) )
   {
-    lock_acquire(cur->p_rel->return_lock);
-    struct list* return_list = cur->p_rel->return_list;
-    list_push_back(return_list, &child_return->elem);
-    lock_release(cur->p_rel->return_lock);
-    sema_up( cur->p_rel->p_sema );
+    status = *(int*)(f->esp+4);
+    f->eax = status;
+    
+    struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
+    child_return->tid = cur->tid;
+    child_return->returned_val = status;
+  
+    /* Add current childs return value to parents return list */
+    if (cur->p_rel->parent_alive)
+    {
+      lock_acquire(cur->p_rel->return_lock);
+      struct list* return_list = cur->p_rel->return_list;
+      list_push_back(return_list, &child_return->elem);
+      lock_release(cur->p_rel->return_lock);
+      sema_up( cur->p_rel->p_sema );
+    }
+  
+    cur->p_rel->alive_count -= 1;
   }
-
-  cur->p_rel->alive_count -= 1;
+  else
+  {
+    status = -1;
+    f->eax = status;
+  }
 
   printf("%s: exit(%d)\n", cur->name, status);
   thread_exit();
