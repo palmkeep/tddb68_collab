@@ -158,7 +158,7 @@ thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  printf("[thread_init entrance] . . . ");
+  //printf("[thread_init entrance] . . . ");
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&waiting_list);
@@ -172,7 +172,7 @@ thread_init (void)
   initial_thread->tracker_avail_ind = 0;
   memset(initial_thread->file_tracker, '\0', sizeof(initial_thread->file_tracker));
 
-  printf("[thread_init exit]\n");
+  //printf("[thread_init exit]\n");
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -180,7 +180,7 @@ thread_init (void)
 void
 thread_start (void) 
 {
-  printf("[thread_start entrance] . . . ");
+  //printf("[thread_start entrance] . . . ");
 
   /* Create the idle thread. */
   struct semaphore idle_started;
@@ -193,7 +193,7 @@ thread_start (void)
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down (&idle_started);
 
-  printf("[thread_start exit]\n");
+  //printf("[thread_start exit]\n");
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -265,7 +265,7 @@ tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *shared_info) 
 {
-  printf("[thread_create entrance] . . . ");
+  //printf("[thread_create entrance] . . . ");
   struct thread *t;
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
@@ -347,7 +347,7 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  printf("[thread_create] exit\n");
+  //printf("[thread_create] exit\n");
   return tid;
 }
 

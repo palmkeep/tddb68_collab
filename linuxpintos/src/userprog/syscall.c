@@ -40,7 +40,7 @@ call_exec(struct intr_frame* f)
 static void 
 call_exit(struct intr_frame *f)
 {
-  printf("[call_exit] entrance . . . ");
+  //printf("[call_exit] entrance . . . ");
   int status = *(int*)(f->esp+4);
   f->eax = status;
 
@@ -61,8 +61,7 @@ call_exit(struct intr_frame *f)
 
   cur->p_rel->alive_count -= 1;
 
-
-  printf("[call_exit] exit (call thread_exit)\n");
+  printf("%s: exit(%d)\n", cur->name, status);
   thread_exit();
 }
 
