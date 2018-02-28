@@ -22,7 +22,7 @@
 #include "threads/synch.h"
 
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool load (const char* file_name, const char *cmdline, void (**eip) (void), void **esp);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -53,10 +53,11 @@ process_execute (const char* command_line)
   sema_init (c_sp, 0);
 
   struct start_process_info* sh = (struct start_process_info*)( malloc(sizeof(struct start_process_info)));
-  sh->file_name = (char*)( malloc(sizeof(command_line)*sizeof(char)) );
+  sh->file_name = (char*)( malloc(strlen(command_line)*sizeof(char)) );
   sh->file_name = fn_copy;
-  sh->cmd_line = (char*)( malloc(sizeof(command_line)*sizeof(char)) );
-  strlcpy( sh->cmd_line, command_line, sizeof(command_line)*sizeof(char) );
+  
+  sh->cmd_line = (char*)( malloc( 1+(strlen(command_line) )*sizeof(char) ) );
+  strlcpy( sh->cmd_line, command_line, (1+strlen(command_line))*sizeof(char) );
   sh->p_sp = p_sp;
   sh->c_sp = c_sp;
   sh->p_ptr = thread_current();
@@ -84,6 +85,11 @@ process_execute (const char* command_line)
     return TID_ERROR;
   }
 
+  sh->alive_count -= 1;
+  if (sh->alive_count == 0)
+  {
+    free(sh);
+  }
 
   printf("[process_execute exit]\n");
   return tid;
@@ -100,29 +106,29 @@ start_process (void *shared_info)
   struct intr_frame if_;
   bool success;
   char* file_name = sh->file_name;
+  char* cmd_line = sh->cmd_line;
+  printf("SP: %s\n", sh->cmd_line);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (file_name, cmd_line, &if_.eip, &if_.esp);
 
   struct thread* t = thread_current();
   if (t->p_rel->parent_alive)
   {
     printf("waking parent ");
-    sema_up(sh->p_sp);
+    sh->alive_count -= 1;
+    sema_up(sh->p_sp); // Make sure no use of sh vars are below here
   }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
-
-  free(shared_info);
-
-
+  
   printf("[start_process exit]\n");
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -315,7 +321,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp) 
+load (const char* file_name, const char *cmd_line, void (**eip) (void), void **esp) 
 {
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
@@ -330,15 +336,106 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+
+  printf("Manipulate stack . . . ");
+
   /* Set up stack. */
   if (!setup_stack (esp)){
     goto done;
   }
 
+  
+  unsigned arg_str_len = (unsigned)strlen(cmd_line);
+  printf("Size of cmd: %d\n", strlen(cmd_line) );
+  unsigned quad_offset = arg_str_len % 4;
+
+  *(void**)esp -= arg_str_len;
+
+  strlcpy ( *(char**)(esp), cmd_line, ( 1+strlen(cmd_line) )*sizeof(char) );
+
+  printf("print command line on stack\n");
+  printf("Should be: %s\n", cmd_line);
+  printf("Copied: %s\n", *(char**)esp);
+
+  char* stri = *((char**)esp);
+  char* debug_stri = &(*stri);
+  int number_args = 1;
+  while(*stri != '\0')
+  {
+    if ( *stri == ' ' && *(stri+1) != '\0' && *(stri+1) != ' ' )
+    {
+      number_args++;
+    }
+    stri++;
+  }
+  stri = *((char**)esp);  // Reset $stri
+  printf("Number of args: %d\n", number_args);
+
+  printf("*esp before quad_off ptr: %p\n", *esp);
+  printf("quad_offset: %d\n", quad_offset);
+  *esp -= ((4 - quad_offset) + 4);  // Set *esp to the next block of 4 bytes that are aligned with 0,4,8 or C on the stack
+  printf("*esp after quad_off ptr: %p\n", *esp);
+
+
+  char* token = *(char**)(esp);
+  char* save_ptr;
+  int tok_it = 0;
+  *esp -= 4*number_args;
+  printf("Tokenize string and associate var ptrs\n");
+  printf("*esp ptr: %p\n", *esp);
+  for ( token = strtok_r(stri, " ", &save_ptr); token != NULL;
+	token = strtok_r(NULL, " ", &save_ptr))
+  {
+    *(char**)(((*esp)+(4*tok_it))) = token;
+    tok_it++;
+  }
+  char** arg_list = (char**)(*esp);
+  printf("arg_list ptr: %p\n", arg_list);
+  printf("tokenizing done. *esp ptr: %p\n", *esp);
+
+  // If second {. . .} in lab spec-sheet needs to be implemented do so here
+  
+  printf("*esp ptr: %p\n", *esp);
+
+  *esp -= 4;
+  printf("arg_list ptr: %p\n", arg_list);
+  printf("*arg_list ptr: %p\n", *arg_list);
+  printf("**arg_list ptr: %p\n", **arg_list);
+  printf("*esp ptr: %p\n", *esp);
+  *(char**)(*esp) = arg_list;
+
+  *esp -= 4;
+  *(int*)(*esp) = number_args;
+
+  *esp -= 4;
+  printf("finished manipulating stack\n");
+
+  
+  printf("DEBUG\n");
+  stri = debug_stri;
+  int p_a = 0;
+  while( ! (*(stri-1) == '\0' && p_a == 3) )
+  {
+    if ( *stri == '\0' )
+    {
+      printf("stri iteration:\nstri ptr: %p\nstri def: NULLCHAR\n", stri);
+      p_a++;
+    }
+    else
+    {
+      printf("stri iteration:\nstri ptr: %p\nstri def: %c\n", stri, *stri);
+    }
+    stri++;
+  }
+  
+
+
+
+
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-/*#define STACK_DEBUG*/
+#define STACK_DEBUG
 
 #ifdef STACK_DEBUG
   printf("*esp is %p\nstack contents:\n", *esp);
@@ -585,7 +682,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12; // DEBUG REMOVE -12 when arg passing is impl.
+        *esp = PHYS_BASE; // DEBUG REMOVE -12 when arg passing is impl.
       else
         palloc_free_page (kpage);
     }

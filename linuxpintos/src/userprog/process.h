@@ -16,6 +16,7 @@ struct start_process_info
   struct semaphore* c_sp;
   struct thread* p_ptr;
   int c_status;
+  int alive_count;
 };
 
 #endif /* userprog/process.h */
