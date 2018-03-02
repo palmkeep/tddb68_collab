@@ -108,12 +108,6 @@ start_process (void *shared_info)
   char* file_name = sh->file_name;
   char* cmd_line = sh->cmd_line;
 
-  printf("start_process is in userspace ");
-  #ifdef USERPROG
-  printf("YES\n");
-  #endif
-  printf("start_process filename is %s\n", file_name);
-
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -155,7 +149,7 @@ start_process (void *shared_info)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
   //printf("[process_wait] entrance. . . ");
 
@@ -206,6 +200,7 @@ process_wait (tid_t child_tid UNUSED)
   }
 
   //printf("[process_wait] exit \n");
+  return returned_child->tid;
 }
 
 /* Free the current process's resources. */

@@ -18,6 +18,8 @@
 
 #include "devices/input.h"
 
+#include "threads/vaddr.h"
+
 static void syscall_handler (struct intr_frame *);
 
 void
@@ -26,16 +28,116 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-static bool
-check_ptr(void* ptr)
+static int
+check_user_ptr(const void* ptr)
 {
-  uint32_t* pd = thread_current()->pagedir;
-  if ( NULL == pagedir_get_page(pd, ptr) )
-    return false;
+  struct thread *cur = thread_current ();
+  uint32_t *pd;
+  pd = cur->pagedir;
+
+  if ( !is_user_vaddr(ptr) || NULL == ptr || NULL == pagedir_get_page(pd, ptr) )
+  {
+    return -1;
+  }
   else
-    return true;
+  {
+    return 1;
+  }
 }
 
+static int
+check_ptr(const void* ptr)
+{
+  struct thread *cur = thread_current ();
+  uint32_t *pd;
+  pd = cur->pagedir;
+
+  if ( !is_kernel_vaddr(ptr) || NULL == ptr )
+  {
+    return -1;
+  }
+  else
+  {
+    return 1;
+  }
+}
+
+
+
+
+static bool
+check_user_str_ptr(const char* ptr)
+{
+  struct thread *cur = thread_current ();
+  uint32_t *pd;
+  pd = cur->pagedir;
+
+  int i = 0;
+  char c = *(ptr+i);
+  do
+  {
+    if ( NULL == pagedir_get_page(pd, ptr+i) ) { return false; }
+    c = *(ptr+(i++));
+  } while( c != '\0');
+
+  if ( NULL == pagedir_get_page(pd, ptr+i) ) { return false; } // Check nullptr
+
+  if (i != 0) { return true; }
+	      { return false;}
+}
+
+
+static bool
+check_user_buf_ptr(const char* ptr, const int size)
+{
+  struct thread *cur = thread_current ();
+  uint32_t *pd;
+  pd = cur->pagedir;
+
+  int i = 0;
+  while (i < size)
+  {
+    if ( NULL == pagedir_get_page(pd, ptr+i) ) { return false; }
+  };
+
+  if (i != 0) { return true; }
+	      { return false;}
+}
+
+
+
+
+
+/* Sys-call specific functions */
+
+static void 
+call_exit(struct intr_frame* f, int status)
+{
+  //printf("[call_exit] entrance . . . ");
+  f->eax = status;
+
+  struct thread* cur = thread_current();
+
+    
+  struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
+  child_return->tid = cur->tid;
+  child_return->returned_val = status;
+  
+  /* Add current childs return value to parents return list */
+  if (cur->p_rel->parent_alive)
+  {
+    lock_acquire(cur->p_rel->return_lock);
+    struct list* return_list = cur->p_rel->return_list;
+    list_push_back(return_list, &child_return->elem);
+    lock_release(cur->p_rel->return_lock);
+    sema_up( cur->p_rel->p_sema );
+    cur->p_rel->alive_count -= 1;
+  }
+  
+
+  printf("%s: exit(%d)\n", cur->name, status);
+  thread_exit();
+}
 
 static void
 call_exec(struct intr_frame* f)
@@ -47,52 +149,17 @@ call_exec(struct intr_frame* f)
   else			{ f->eax = pid;}
 }
 
-/* Sys-call specific functions */
-
-static void 
-call_exit(struct intr_frame *f)
+static void
+call_wait(struct intr_frame* f, tid_t tid)
 {
-  //printf("[call_exit] entrance . . . ");
-
-  int status;
-  struct thread* cur = thread_current();
-  if ( check_ptr( (f->esp+4) ) )
-  {
-    status = *(int*)(f->esp+4);
-    f->eax = status;
-    
-    struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
-    child_return->tid = cur->tid;
-    child_return->returned_val = status;
-  
-    /* Add current childs return value to parents return list */
-    if (cur->p_rel->parent_alive)
-    {
-      lock_acquire(cur->p_rel->return_lock);
-      struct list* return_list = cur->p_rel->return_list;
-      list_push_back(return_list, &child_return->elem);
-      lock_release(cur->p_rel->return_lock);
-      sema_up( cur->p_rel->p_sema );
-    }
-  
-    cur->p_rel->alive_count -= 1;
-  }
-  else
-  {
-    status = -1;
-    f->eax = status;
-  }
-
-  printf("%s: exit(%d)\n", cur->name, status);
-  thread_exit();
+  int return_val = process_wait(tid);
+  f->eax = return_val;
 }
 
 static void
-call_create(struct intr_frame *f)
+call_create(struct intr_frame *f, char* filename_ptr, off_t file_size)
 {
-  char* filename_pointer = *(char**)(f->esp+4);
-  off_t file_size = *(unsigned*)(f->esp+8);
-  if ( filesys_create( filename_pointer, file_size) )
+  if ( *filename_ptr != '\0' && filesys_create( filename_ptr, file_size) )
   {
     f->eax = 1;
   }
@@ -193,46 +260,85 @@ call_write(struct intr_frame *f)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  unsigned syscall_nr = *(unsigned*)f->esp;
-
-  switch (syscall_nr)
+  int ptr_stat = check_user_ptr( f->esp );
+  if ( ptr_stat == 1 && NULL != f->esp )
   {
-    case SYS_EXEC:
-      call_exec(f);
-      break;
 
-    case SYS_HALT:
-      power_off();
-      break;
-
-    case SYS_EXIT:
-      call_exit(f);
-      break;
-
-    case SYS_CREATE:
-      call_create(f);
-      break;
+    unsigned syscall_nr = *(unsigned*)f->esp;
+    int s;
   
-    case SYS_OPEN:
-      call_open(f);
-      break;
+    switch (syscall_nr)
+    {
+      case SYS_HALT:
+        power_off();
+        break;
 
-    case SYS_CLOSE:
-      call_close(f);
-      break;
+      case SYS_EXIT:
+	if ( 1 == check_user_ptr( (f->esp+4) ) )
+	{
+	  call_exit( f, *(int*)(f->esp+4) );
+	}
+	else
+	{
+	  call_exit(f, -1); // Exit(-1) on bad ptr
+	}
+        break;
 
-    case SYS_READ:
-      call_read(f);
-      break; 
+      case SYS_EXEC:
+        call_exec(f);
+        break;
 
-    case SYS_WRITE:
-      call_write(f);
-      break;
-
-    default:  ;
-      thread_exit ();
-      break;
-  } 
+      case SYS_WAIT:
+	if (check_user_ptr(f->esp+4))
+	{
+	  call_wait( f, *(tid_t*)(f->esp+4) );
+	}
+	else
+	{
+	  call_exit(f, -1);
+	}
+	break;
+  
+      case SYS_CREATE:
+	if ( check_user_str_ptr( *(char**)(f->esp+4) ) && check_user_ptr( (f->esp+8) ) && 0 <= *(off_t*)(f->esp+8)  )
+	{
+	  call_create( f, *(char**)(f->esp+4), *(off_t*)(f->esp+8) );
+	}
+	else
+	{
+	  call_exit(f, -1);
+	}
+        break;
+    
+      case SYS_OPEN:
+        call_open(f);
+        break;
+  
+      case SYS_CLOSE:
+        call_close(f);
+        break;
+  
+      case SYS_READ:
+        call_read(f);
+        break; 
+  
+      case SYS_WRITE:
+        call_write(f);
+        break;
+  
+      default:
+	call_exit(f, -1); // Bad syscall number passed
+        break;
+    }
+  }
+  else if (ptr_stat == -1)
+  {
+    call_exit(f, -1);
+  }
+  else
+  {
+    call_exit(f, -1);
+  }
 }
 
 
