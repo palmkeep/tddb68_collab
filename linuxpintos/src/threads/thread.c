@@ -347,7 +347,7 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  //printf("[thread_create] exit\n");
+  //printf("[thread_create] exit new tid: %d\n", tid);
   return tid;
 }
 

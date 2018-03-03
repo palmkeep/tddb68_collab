@@ -151,9 +151,10 @@ start_process (void *shared_info)
 int
 process_wait (tid_t child_tid) 
 {
-  //printf("[process_wait] entrance. . . ");
 
   struct thread* cur = thread_current();
+  printf("[process_wait] entrance\n");
+  printf("By: %s\nfor pid: %d\n", cur->name, child_tid);
   bool child_returned = false;
   struct child_return* returned_child;
 
@@ -199,7 +200,7 @@ process_wait (tid_t child_tid)
     lock_release( cur->return_lock );
   }
 
-  //printf("[process_wait] exit \n");
+  printf("[process_wait] exit \n");
   return returned_child->tid;
 }
 

@@ -28,7 +28,7 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-static int
+static bool
 check_user_ptr(const void* ptr)
 {
   struct thread *cur = thread_current ();
@@ -37,15 +37,15 @@ check_user_ptr(const void* ptr)
 
   if ( !is_user_vaddr(ptr) || NULL == ptr || NULL == pagedir_get_page(pd, ptr) )
   {
-    return -1;
+    return false;
   }
   else
   {
-    return 1;
+    return true;
   }
 }
 
-static int
+static bool
 check_ptr(const void* ptr)
 {
   struct thread *cur = thread_current ();
@@ -54,16 +54,13 @@ check_ptr(const void* ptr)
 
   if ( !is_kernel_vaddr(ptr) || NULL == ptr )
   {
-    return -1;
+    return false;
   }
   else
   {
-    return 1;
+    return true;
   }
 }
-
-
-
 
 static bool
 check_user_str_ptr(const char* ptr)
@@ -115,9 +112,9 @@ call_exit(struct intr_frame* f, int status)
 {
   //printf("[call_exit] entrance . . . ");
   f->eax = status;
+  printf("Exiting syscall stat: %d\n", status);
 
   struct thread* cur = thread_current();
-
     
   struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
   child_return->tid = cur->tid;
@@ -126,6 +123,7 @@ call_exit(struct intr_frame* f, int status)
   /* Add current childs return value to parents return list */
   if (cur->p_rel->parent_alive)
   {
+    printf("Parent is alive\n");
     lock_acquire(cur->p_rel->return_lock);
     struct list* return_list = cur->p_rel->return_list;
     list_push_back(return_list, &child_return->elem);
@@ -133,6 +131,7 @@ call_exit(struct intr_frame* f, int status)
     sema_up( cur->p_rel->p_sema );
     cur->p_rel->alive_count -= 1;
   }
+  else { printf("Parent is not alive\n"); }
   
 
   printf("%s: exit(%d)\n", cur->name, status);
@@ -152,8 +151,10 @@ call_exec(struct intr_frame* f)
 static void
 call_wait(struct intr_frame* f, tid_t tid)
 {
+  printf("SYSC: CALL_WAIT\n");
   int return_val = process_wait(tid);
   f->eax = return_val;
+  printf("Exit SYSC\n");
 }
 
 static void
@@ -229,12 +230,8 @@ call_read(struct intr_frame *f)
 }
 
 static void
-call_write(struct intr_frame *f)
+call_write(struct intr_frame *f, int file_descriptor, void* buffer, unsigned size)
 {
-  int file_descriptor = *(int*)(f->esp+4);
-  void* buffer = *(void**)(f->esp+8);
-  unsigned size = *(unsigned*)(f->esp+12);
-
   if (file_descriptor == 1)
   {
     size_t size_buffer = (size_t)size;  // Recast to size_t for use with putbuf()
@@ -260,10 +257,8 @@ call_write(struct intr_frame *f)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  int ptr_stat = check_user_ptr( f->esp );
-  if ( ptr_stat == 1 && NULL != f->esp )
+  if ( check_user_ptr(f->esp) && NULL != f->esp )
   {
-
     unsigned syscall_nr = *(unsigned*)f->esp;
     int s;
   
@@ -323,7 +318,14 @@ syscall_handler (struct intr_frame *f UNUSED)
         break; 
   
       case SYS_WRITE:
-        call_write(f);
+	if ( check_user_ptr(f->esp+4) && check_user_str_ptr(f->esp+8) && check_user_ptr(f->esp+12) )
+	{
+	  call_write(f, *(int*)(f->esp+4), *(void**)(f->esp+8), *(unsigned*)(f->esp+12));
+	}
+	else
+	{
+	  call_exit(f, -1);
+	}
         break;
   
       default:
@@ -331,13 +333,9 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
   }
-  else if (ptr_stat == -1)
-  {
-    call_exit(f, -1);
-  }
   else
   {
-    call_exit(f, -1);
+    call_exit(f, -1); // Bad syscall number pointer
   }
 }
 
