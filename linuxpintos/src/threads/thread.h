@@ -158,6 +158,7 @@ struct thread
     tid_t awaited_child_tid;
     struct semaphore awaiting_child;
 
+    int ret_status;
 
 
 #ifdef USERPROG

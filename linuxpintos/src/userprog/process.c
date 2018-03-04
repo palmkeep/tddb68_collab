@@ -161,14 +161,15 @@ process_wait (tid_t child_tid)
   {
     printf("Current process: %s\n", cur->name);
     printf("Lock acq in pro_wait\n");
-    printf("Lock ptr: %p\n", cur->return_lock);
-    lock_acquire( cur->return_lock ); 
+    lock_acquire( cur->return_lock );
     struct list_elem* e;
     for ( e = list_begin(cur->returned_children);
 	  e != list_end(cur->returned_children);
 	  e = list_next(e)
 	)
     {
+      printf("e is head?: %d", (e != NULL && e->prev == NULL && e->next != NULL) );
+      printf(" e is tail?: %d\n", (e != NULL && e->prev != NULL && e->next == NULL) );
       returned_child = list_entry(e, struct child_return, elem);
       if (returned_child->tid == child_tid)
       {
@@ -178,6 +179,7 @@ process_wait (tid_t child_tid)
     }
     lock_release( cur->return_lock );
   }
+  printf("first iter passed\n");
 
   if (!child_returned)
   {
@@ -212,8 +214,28 @@ process_exit (void)
   //printf("[process_exit] entrance . . . ");
 
   struct thread *cur = thread_current ();
-  uint32_t *pd;
 
+  /* Add current childs return value to parents return list */
+  if (cur->p_rel->parent_alive)
+  {
+    struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
+    child_return->tid = cur->tid;
+    child_return->returned_val = cur->ret_status;
+
+    printf("Parent is alive\n");
+    lock_acquire(cur->p_rel->return_lock);
+
+    struct list* return_list = cur->p_rel->return_list;
+    list_push_back(return_list, &child_return->elem);
+
+    lock_release(cur->p_rel->return_lock);
+
+    sema_up( cur->p_rel->p_sema );
+    cur->p_rel->alive_count -= 1;
+  }
+  else { printf("Parent is not alive\n"); }
+
+  uint32_t *pd;
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;

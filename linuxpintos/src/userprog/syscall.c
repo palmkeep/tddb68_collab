@@ -50,7 +50,7 @@ check_ptr(const void* ptr)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
-  pd = cur->pagedir;
+  pd = cur->pagedir; // ???
 
   if ( !is_kernel_vaddr(ptr) || NULL == ptr )
   {
@@ -111,27 +111,35 @@ static void
 call_exit(struct intr_frame* f, int status)
 {
   //printf("[call_exit] entrance . . . ");
+  struct thread* cur = thread_current();
+  
   f->eax = status;
+  cur->status = status;
   printf("Exiting syscall stat: %d\n", status);
 
+  /*
   struct thread* cur = thread_current();
-    
-  struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
-  child_return->tid = cur->tid;
-  child_return->returned_val = status;
-  
-  /* Add current childs return value to parents return list */
+      
+   Add current childs return value to parents return list 
   if (cur->p_rel->parent_alive)
   {
+    struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
+    child_return->tid = cur->tid;
+    child_return->returned_val = status;
+
     printf("Parent is alive\n");
     lock_acquire(cur->p_rel->return_lock);
+
     struct list* return_list = cur->p_rel->return_list;
     list_push_back(return_list, &child_return->elem);
+
     lock_release(cur->p_rel->return_lock);
+
     sema_up( cur->p_rel->p_sema );
     cur->p_rel->alive_count -= 1;
   }
   else { printf("Parent is not alive\n"); }
+  */
   
 
   printf("%s: exit(%d)\n", cur->name, status);
@@ -144,8 +152,8 @@ call_exec(struct intr_frame* f)
   const char* cmd_line = *(char**)(f->esp+4); // No error correction  
   tid_t pid = process_execute(cmd_line);
 
-  if (pid == TID_ERROR) { f->eax =  -1;}
-  else			{ f->eax = pid;}
+  if (pid == TID_ERROR) { f->eax =  -1; }
+  else			{ f->eax = pid; }
 }
 
 static void

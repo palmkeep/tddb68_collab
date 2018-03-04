@@ -298,27 +298,10 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
 
   /* Init thread variables from parent */
-  struct start_process_info* sh = shared_info;
+  struct start_process_info* sh = shared_info;  //Mostly handled through p_rel and c_rel
   struct thread* cur = thread_current();
 
   /* Relationship with parent */
-
-  if (cur->c_rel == NULL)
-  {
-    printf("cur name: %s\n", cur->name);
-    printf("cur c_rel is null\n");
-    printf("cur c_rel: %p\n", cur->c_rel);
-  }
-  else
-  {
-    printf("cur name: %s\n", cur->name);
-    printf("cur c_rel is not null\n");
-    printf("cur c_rel->p_alive: %d\n", cur->c_rel->parent_alive);
-    printf("cur c_rel->alive_count: %d\n", cur->c_rel->alive_count);
-    printf("cur c_rel->return_lock: %p\n", cur->c_rel->return_lock);
-    printf("cur lock: %p\n", cur->return_lock);
-  }
-
 
   // Create a child relation for parent thread if none exists
   if ( cur->c_rel == NULL)
@@ -334,7 +317,11 @@ thread_create (const char *name, int priority,
     sema_init(cur->c_rel->p_sema, 0);
     lock_init(cur->c_rel->return_lock);
 
+    printf("name: %s\n", cur->name);
+    cur->returned_children = (struct list*)( malloc(sizeof(struct list)) );
+    printf("list ptr: %p\n", cur->returned_children);
     list_init( &cur->children_tids );
+    list_init( &cur->children_tids ); 
   }
 
   printf("AAA\n");
@@ -365,7 +352,7 @@ thread_create (const char *name, int priority,
   t->c_rel->p_sema	  = &t->awaiting_child;
   t->c_rel->return_list	  = t->returned_children;
 
-  sema_init(&t->awaiting_child, 0);
+  sema_init( &t->awaiting_child, 0 );
 
   t->return_lock = (struct lock*)( malloc(sizeof(struct lock)) );
   t->c_rel->return_lock = t->return_lock;
