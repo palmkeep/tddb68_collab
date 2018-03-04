@@ -54,6 +54,12 @@ struct child_return
   struct list_elem elem;
 };
 
+struct child_tid
+{
+  tid_t tid;
+  struct list_elem elem;
+};
+
 
 /* Waiting thread */
 struct waiting_thread_list_elem
@@ -147,6 +153,7 @@ struct thread
 
     struct lock* return_lock;
     struct list* returned_children;
+    struct list children_tids;
 
     tid_t awaited_child_tid;
     struct semaphore awaiting_child;

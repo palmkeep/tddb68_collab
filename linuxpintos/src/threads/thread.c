@@ -265,7 +265,7 @@ tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *shared_info) 
 {
-  //printf("[thread_create entrance] . . . ");
+  printf("[thread_create entrance] . . . \n");
   struct thread *t;
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
@@ -299,33 +299,62 @@ thread_create (const char *name, int priority,
 
   /* Init thread variables from parent */
   struct start_process_info* sh = shared_info;
-
-
   struct thread* cur = thread_current();
+
   /* Relationship with parent */
 
-  if (cur->c_rel == NULL)	// Create a child relation for parent thread if none exists
+  if (cur->c_rel == NULL)
+  {
+    printf("cur name: %s\n", cur->name);
+    printf("cur c_rel is null\n");
+    printf("cur c_rel: %p\n", cur->c_rel);
+  }
+  else
+  {
+    printf("cur name: %s\n", cur->name);
+    printf("cur c_rel is not null\n");
+    printf("cur c_rel->p_alive: %d\n", cur->c_rel->parent_alive);
+    printf("cur c_rel->alive_count: %d\n", cur->c_rel->alive_count);
+    printf("cur c_rel->return_lock: %p\n", cur->c_rel->return_lock);
+    printf("cur lock: %p\n", cur->return_lock);
+  }
+
+
+  // Create a child relation for parent thread if none exists
+  if ( cur->c_rel == NULL)
   {
     cur->c_rel = (struct thread_relation*)( malloc(sizeof(struct thread_relation)) );
     cur->c_rel->parent_alive  = true;
     cur->c_rel->alive_count   = 1;
     cur->c_rel->parent	      = cur;
     cur->c_rel->p_sema	      = (struct semaphore*)( malloc(sizeof(struct semaphore)) );
+    cur->return_lock	      = (struct lock*)( malloc(sizeof(struct lock)) );
+    cur->c_rel->return_lock   = cur->return_lock;
+
     sema_init(cur->c_rel->p_sema, 0);
-    cur->return_lock   = (struct lock*)( malloc(sizeof(struct lock)) );
-    cur->c_rel->return_lock = cur->return_lock;
     lock_init(cur->c_rel->return_lock);
 
-    if (cur->returned_children == NULL)
-    {
-      cur->returned_children = (struct list*)( malloc(sizeof(struct list)) );
-      list_init(cur->returned_children);
-    }
-    cur->c_rel->return_list = cur->returned_children;
+    list_init( &cur->children_tids );
   }
+
+  printf("AAA\n");
+  printf("AAA\n");
+  struct child_tid new_tid;
+  new_tid.tid = tid;
+  list_push_back( &cur->children_tids, &new_tid.elem );
+  printf("BBB\n");
+  printf("BBB\n");
+
+  if (cur->returned_children == NULL)
+  {
+    cur->returned_children = (struct list*)( malloc(sizeof(struct list)) );
+    list_init(cur->returned_children);
+  }
+  cur->c_rel->return_list = cur->returned_children;
+
   t->p_rel = cur->c_rel;      // Set childs parent relation to parents child relation
 
-  /* Relationship with children */
+  /* Childs relationship with its children */
   t->returned_children = (struct list*)( malloc(sizeof(struct list)) );
   list_init( t->returned_children );
 
@@ -338,10 +367,17 @@ thread_create (const char *name, int priority,
 
   sema_init(&t->awaiting_child, 0);
 
-
-  t->c_rel->return_lock	  = (struct lock*)( malloc(sizeof(struct lock)) );
-  lock_init(t->c_rel->return_lock);
+  t->return_lock = (struct lock*)( malloc(sizeof(struct lock)) );
+  t->c_rel->return_lock = t->return_lock;
+  lock_init(t->return_lock);
   t->c_rel->return_list	  = t->returned_children;
+
+  printf("Current process: %s\n", cur->name);
+  printf("Lock inited in thread_create\n");
+  printf("Lock ptr: %p\n", cur->return_lock);
+
+  list_init( &t->children_tids );
+
 
 
   /* Add to run queue. */

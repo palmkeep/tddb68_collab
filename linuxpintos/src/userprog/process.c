@@ -86,10 +86,7 @@ process_execute (const char* command_line)
   }
 
   sh->alive_count -= 1;
-  if (sh->alive_count == 0)
-  {
-    free(sh);
-  }
+  if (sh->alive_count == 0) { free(sh); }
 
   //printf("[process_execute exit]\n");
   return tid;
@@ -119,9 +116,10 @@ start_process (void *shared_info)
   if (t->p_rel->parent_alive)
   {
     //printf("waking parent ");
-    sh->alive_count -= 1;
     sema_up(sh->p_sp); // Make sure no use of sh vars are below here
   }
+  sh->alive_count -= 1;
+  if (sh->alive_count == 0) { free(sh); }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -161,6 +159,9 @@ process_wait (tid_t child_tid)
   cur->c_rel->awaited_tid = child_tid;
   if ( !list_empty(cur->returned_children) )
   {
+    printf("Current process: %s\n", cur->name);
+    printf("Lock acq in pro_wait\n");
+    printf("Lock ptr: %p\n", cur->return_lock);
     lock_acquire( cur->return_lock ); 
     struct list_elem* e;
     for ( e = list_begin(cur->returned_children);
