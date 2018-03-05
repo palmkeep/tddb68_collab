@@ -26,24 +26,69 @@ static bool load (const char* file_name, const char *cmdline, void (**eip) (void
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
-   before process_execute() returns.  Returns the new process's
+   before process_execute() returns. Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute (const char* command_line) 
 {
   //printf("[process_execute entrance] . . . ");
-  char *fn_copy;
+  char* name_copy;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
+  name_copy = palloc_get_page (0);
+  if (name_copy == NULL)
     return TID_ERROR;
 
+
+  // Make copy of whole command line with only one space between args
+  char* cmd_copy = (char*)( malloc( (1+strlen(command_line)*sizeof(char) ) ) );
+  strlcpy (cmd_copy, command_line, (1+strlen(command_line))*sizeof(char) );
+
+
+  unsigned stri = 0;
+  bool prv_ch_sp = false;
+  unsigned cmd_len;
+  printf("cmd_copy: %s\n", cmd_copy);
+  for (stri; stri < strlen(command_line); stri++)
+  {
+    printf("char: %c   char is space: %d\n", cmd_copy[stri], cmd_copy[stri] == ' ');
+    if ( cmd_copy[stri] == ' ' ) // Is blankspace
+    {
+      if (prv_ch_sp)
+      {
+	unsigned stri_cp = stri;
+	printf("removing space\n");
+	for(stri_cp; stri_cp < strlen(command_line); stri_cp++)
+	{
+	  cmd_copy[stri_cp] = cmd_copy[stri_cp+1];
+	}
+
+	if (cmd_copy[stri_cp] == '\0' || stri_cp == strlen(command_line) )
+	{
+	  cmd_copy[stri_cp-1] = '\0';
+	  cmd_len = stri_cp;
+	}
+	stri--;
+      }
+      prv_ch_sp = true;
+    }
+    else { prv_ch_sp = false; }
+  }
+  stri = 0;
+  for (stri; stri < strlen(command_line); stri++)
+  {
+    printf("char: %d\n", cmd_copy[stri]);
+  }
+  printf("Removed un. spaces\n");
+
+
+  // Make copy of filename
   int it = 0;
-  while (command_line[it] != ' ' && command_line[it] != '\0') { it++; }
-  strlcpy (fn_copy, command_line, (it+1)*sizeof(char));
+  while (cmd_copy[it] != ' ' && cmd_copy[it] != '\0') { it++; }
+  strlcpy (name_copy, command_line, (it+1)*sizeof(char));
+
 
   /* Create a new thread to execute FILE_NAME. */
 
@@ -54,10 +99,14 @@ process_execute (const char* command_line)
 
   struct start_process_info* sh = (struct start_process_info*)( malloc(sizeof(struct start_process_info)));
   sh->file_name = (char*)( malloc(strlen(command_line)*sizeof(char)) );
-  sh->file_name = fn_copy;
+  sh->file_name = name_copy;
+
+  printf("commandl: %s\n", command_line);
+  printf("cmd copy: %s\n", cmd_copy);
   
-  sh->cmd_line = (char*)( malloc( 1+(strlen(command_line) )*sizeof(char) ) );
-  strlcpy( sh->cmd_line, command_line, (1+strlen(command_line))*sizeof(char) );
+  sh->cmd_line = (char*)( malloc( 1+(strlen(command_line) )*sizeof(char) ) );   // +1 for nullchar
+  strlcpy( sh->cmd_line, cmd_copy, (cmd_len)*sizeof(char) );
+  free(cmd_copy);
   sh->p_sp = p_sp;
   sh->c_sp = c_sp;
   sh->p_ptr = thread_current();
@@ -73,7 +122,7 @@ process_execute (const char* command_line)
 
   if (tid == TID_ERROR)
   {
-    palloc_free_page (fn_copy);
+    palloc_free_page (name_copy);
     return TID_ERROR; // FAILURE TO thread_create()
   }
 
@@ -81,7 +130,7 @@ process_execute (const char* command_line)
   sema_down(p_sp);    // Wait for child to load
   if (sh->c_status == TID_ERROR)
   {
-    palloc_free_page (fn_copy);
+    palloc_free_page (name_copy);
     return TID_ERROR;
   }
 
@@ -151,25 +200,21 @@ process_wait (tid_t child_tid)
 {
 
   struct thread* cur = thread_current();
-  printf("[process_wait] entrance\n");
-  printf("By: %s\nfor pid: %d\n", cur->name, child_tid);
+//  printf("[process_wait] entrance\n");
+//  printf("By: %s\nfor pid: %d\n", cur->name, child_tid);
   bool child_returned = false;
   struct child_return* returned_child;
 
   cur->c_rel->awaited_tid = child_tid;
   if ( !list_empty(cur->returned_children) )
   {
-    printf("Current process: %s\n", cur->name);
-    printf("Lock acq in pro_wait\n");
     lock_acquire( cur->return_lock );
     struct list_elem* e;
-    for ( e = list_begin(cur->returned_children);
+    for ( e  = list_begin(cur->returned_children);
 	  e != list_end(cur->returned_children);
-	  e = list_next(e)
-	)
+	  e  = list_next(e)
+	)    
     {
-      printf("e is head?: %d", (e != NULL && e->prev == NULL && e->next != NULL) );
-      printf(" e is tail?: %d\n", (e != NULL && e->prev != NULL && e->next == NULL) );
       returned_child = list_entry(e, struct child_return, elem);
       if (returned_child->tid == child_tid)
       {
@@ -179,18 +224,17 @@ process_wait (tid_t child_tid)
     }
     lock_release( cur->return_lock );
   }
-  printf("first iter passed\n");
+  //printf("first iter passed\n");
 
   if (!child_returned)
   {
-    sema_init( &cur->awaiting_child, 0); // Might be wonky as it's initiated elsewhere
-    sema_down( &cur->awaiting_child );
+    sema_down( cur->c_rel->p_sema );
 
     struct list_elem* e;
     lock_acquire( cur->return_lock );
-    for ( e = list_begin(cur->returned_children);
+    for ( e  = list_begin(cur->returned_children);
 	  e != list_end(cur->returned_children);
-	  e = list_next(e)
+	  e  = list_next(e)
 	)
     {
       returned_child = list_entry(e, struct child_return, elem);
@@ -203,7 +247,7 @@ process_wait (tid_t child_tid)
     lock_release( cur->return_lock );
   }
 
-  printf("[process_wait] exit \n");
+  //printf("[process_wait] exit \n");
   return returned_child->tid;
 }
 
@@ -216,13 +260,14 @@ process_exit (void)
   struct thread *cur = thread_current ();
 
   /* Add current childs return value to parents return list */
+
   if (cur->p_rel->parent_alive)
   {
     struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
     child_return->tid = cur->tid;
     child_return->returned_val = cur->ret_status;
 
-    printf("Parent is alive\n");
+    //printf("Parent is alive\n");
     lock_acquire(cur->p_rel->return_lock);
 
     struct list* return_list = cur->p_rel->return_list;
@@ -230,10 +275,12 @@ process_exit (void)
 
     lock_release(cur->p_rel->return_lock);
 
+//  printf("Sema up parent\n");
     sema_up( cur->p_rel->p_sema );
+//  printf("Parent sema ptr: %p\n", cur->p_rel->p_sema);
     cur->p_rel->alive_count -= 1;
   }
-  else { printf("Parent is not alive\n"); }
+  //else { printf("Parent is not alive\n"); }
 
   uint32_t *pd;
   /* Destroy the current process's page directory and switch back
@@ -253,6 +300,8 @@ process_exit (void)
       pagedir_destroy (pd);
     }
   //printf("[process_exit] exit\n");
+  
+  printf("%s: exit(%d)\n", cur->name, cur->status);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -368,7 +417,7 @@ load (const char* file_name, const char *cmd_line, void (**eip) (void), void **e
     goto done;
   }
 
-  
+  // Setup stack frame
   unsigned arg_str_len = (unsigned)strlen(cmd_line);
   unsigned quad_offset = (arg_str_len+1) % 4;
 
@@ -409,33 +458,9 @@ load (const char* file_name, const char *cmd_line, void (**eip) (void), void **e
 
   *esp -= 4;
   *(char**)(*esp) = arg_list;
-
   *esp -= 4;
   *(int*)(*esp) = number_args;
-
   *esp -= 4;
-//  printf("finished manipulating stack\n");
-
-  
-  /*
-   * printf("DEBUG\n");
-  stri = debug_stri;
-  int p_a = 0;
-  while( ! (*(stri-1) == '\0' && p_a == 3) )
-  {
-    if ( *stri == '\0' )
-    {
-      printf("stri iteration:\nstri ptr: %p\nstri def: NULLCHAR\n", stri);
-      p_a++;
-    }
-    else
-    {
-      printf("stri iteration:\nstri ptr: %p\nstri def: %c\n", stri, *stri);
-    }
-    stri++;
-  }
-  */
-  
 
 
 
@@ -443,7 +468,7 @@ load (const char* file_name, const char *cmd_line, void (**eip) (void), void **e
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-//#define STACK_DEBUG
+#define STACK_DEBUG
 
 #ifdef STACK_DEBUG
   printf("*esp is %p\nstack contents:\n", *esp);

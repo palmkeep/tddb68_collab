@@ -95,7 +95,7 @@ check_user_buf_ptr(const char* ptr, const int size)
   while (i < size)
   {
     if ( NULL == pagedir_get_page(pd, ptr+i) ) { return false; }
-  };
+  }
 
   if (i != 0) { return true; }
 	      { return false;}
@@ -115,34 +115,7 @@ call_exit(struct intr_frame* f, int status)
   
   f->eax = status;
   cur->status = status;
-  printf("Exiting syscall stat: %d\n", status);
 
-  /*
-  struct thread* cur = thread_current();
-      
-   Add current childs return value to parents return list 
-  if (cur->p_rel->parent_alive)
-  {
-    struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
-    child_return->tid = cur->tid;
-    child_return->returned_val = status;
-
-    printf("Parent is alive\n");
-    lock_acquire(cur->p_rel->return_lock);
-
-    struct list* return_list = cur->p_rel->return_list;
-    list_push_back(return_list, &child_return->elem);
-
-    lock_release(cur->p_rel->return_lock);
-
-    sema_up( cur->p_rel->p_sema );
-    cur->p_rel->alive_count -= 1;
-  }
-  else { printf("Parent is not alive\n"); }
-  */
-  
-
-  printf("%s: exit(%d)\n", cur->name, status);
   thread_exit();
 }
 
@@ -159,29 +132,24 @@ call_exec(struct intr_frame* f)
 static void
 call_wait(struct intr_frame* f, tid_t tid)
 {
-  printf("SYSC: CALL_WAIT\n");
+//  printf("SYSC: CALL_WAIT\n");
   int return_val = process_wait(tid);
   f->eax = return_val;
-  printf("Exit SYSC\n");
+//  printf("Exit SYSC\n");
 }
 
 static void
 call_create(struct intr_frame *f, char* filename_ptr, off_t file_size)
 {
   if ( *filename_ptr != '\0' && filesys_create( filename_ptr, file_size) )
-  {
     f->eax = 1;
-  }
-  else
-  {
+  else	
     f->eax = 0;
-  }
 }
 
 static void
-call_open(struct intr_frame *f)
+call_open(struct intr_frame *f, char* filename)
 {
-  char* filename = *(char**)(f->esp+4);
   struct thread* current_thread = thread_current();
   int fd = add_file_to_fd(current_thread, filename);
   f->eax = fd;  // Returns -1 if the file could not be opened
@@ -314,7 +282,20 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     
       case SYS_OPEN:
-        call_open(f);
+	printf("sp: %p\n", f->esp);
+	printf("sp->str-ptr: %p\n", *(char**)(f->esp+4));
+	if ( check_user_str_ptr( *(char**)(f->esp+4) ) )
+	{
+	  printf("Got good ptr\n");
+	  char* filename = *(char**)(f->esp+4);
+	  call_open(f, filename);
+
+	}
+	else
+	{
+	  printf("Got bad ptr\n");
+	  call_exit(f, -1);
+	}
         break;
   
       case SYS_CLOSE:
