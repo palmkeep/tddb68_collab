@@ -153,7 +153,7 @@ struct thread
 
     struct lock* return_lock;
     struct list* returned_children;
-    struct list children_tids;
+    struct list* children_tids;
 
     tid_t awaited_child_tid;
     struct semaphore awaiting_child;

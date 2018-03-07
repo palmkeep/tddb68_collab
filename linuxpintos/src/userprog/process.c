@@ -48,18 +48,15 @@ process_execute (const char* command_line)
 
 
   unsigned stri = 0;
-  bool prv_ch_sp = false;
+  bool prv_ch_sp = true;
   unsigned cmd_len;
-  printf("cmd_copy: %s\n", cmd_copy);
   for (stri; stri < strlen(command_line); stri++)
   {
-    printf("char: %c   char is space: %d\n", cmd_copy[stri], cmd_copy[stri] == ' ');
     if ( cmd_copy[stri] == ' ' ) // Is blankspace
     {
       if (prv_ch_sp)
       {
 	unsigned stri_cp = stri;
-	printf("removing space\n");
 	for(stri_cp; stri_cp < strlen(command_line); stri_cp++)
 	{
 	  cmd_copy[stri_cp] = cmd_copy[stri_cp+1];
@@ -76,13 +73,17 @@ process_execute (const char* command_line)
     }
     else { prv_ch_sp = false; }
   }
-  stri = 0;
-  for (stri; stri < strlen(command_line); stri++)
+  stri = strlen(command_line);
+  int string_length = strlen(command_line);
+  for (stri;; stri--)
   {
-    printf("char: %d\n", cmd_copy[stri]);
+    if (cmd_copy[stri] == ' ')
+    {
+      cmd_len -= 1;
+      cmd_copy[stri] = '\0';
+    }
+    else  { break; }
   }
-  printf("Removed un. spaces\n");
-
 
   // Make copy of filename
   int it = 0;
@@ -101,11 +102,8 @@ process_execute (const char* command_line)
   sh->file_name = (char*)( malloc(strlen(command_line)*sizeof(char)) );
   sh->file_name = name_copy;
 
-  printf("commandl: %s\n", command_line);
-  printf("cmd copy: %s\n", cmd_copy);
-  
   sh->cmd_line = (char*)( malloc( 1+(strlen(command_line) )*sizeof(char) ) );   // +1 for nullchar
-  strlcpy( sh->cmd_line, cmd_copy, (cmd_len)*sizeof(char) );
+  strlcpy( sh->cmd_line, cmd_copy, (1+cmd_len)*sizeof(char) ); // +1 for nullchar
   free(cmd_copy);
   sh->p_sp = p_sp;
   sh->c_sp = c_sp;
@@ -136,6 +134,19 @@ process_execute (const char* command_line)
 
   sh->alive_count -= 1;
   if (sh->alive_count == 0) { free(sh); }
+
+  // 
+  struct thread* cur = thread_current();
+  struct child_tid* new_child = (struct child_tid*)( malloc(sizeof(struct child_tid)) );
+  new_child->tid = tid;
+  if ( !list_empty( cur->children_tids ) )
+  {
+    list_push_back( cur->children_tids, &new_child->elem );
+  }
+  else
+  {
+    return -1;
+  }
 
   //printf("[process_execute exit]\n");
   return tid;
@@ -200,16 +211,46 @@ process_wait (tid_t child_tid)
 {
 
   struct thread* cur = thread_current();
-//  printf("[process_wait] entrance\n");
+//printf("[process_wait] entrance\n");
 //  printf("By: %s\nfor pid: %d\n", cur->name, child_tid);
   bool child_returned = false;
   struct child_return* returned_child;
+  struct child_tid* ret;
+
+  struct list_elem* e;
+
+
+  printf("thread name: %s\n", cur->name);
+  if ( !list_empty( &cur->children_tids ) )
+  {
+    bool is_waitable = false;
+    for ( e  = list_begin(cur->children_tids); 
+	  e != list_end(cur->children_tids);
+	  e  = list_next(e)
+	)
+    {
+      ret = list_entry(e, struct child_tid, elem);
+      if ( ret->tid == child_tid )
+      {
+	is_waitable = true;
+	break;
+      }
+    }
+    if (!is_waitable) { printf("Exit with -1 from process_wait\n"); return -1; }
+  }
+  else { printf("Exit with -1 from process_wait\n"); return -1; }
+
+  ret = list_entry(e, struct child_tid, elem);
+  list_remove( &ret->elem );
+  free(ret); 
+  printf("HEEEEELLLO\n");
+  
 
   cur->c_rel->awaited_tid = child_tid;
   if ( !list_empty(cur->returned_children) )
   {
     lock_acquire( cur->return_lock );
-    struct list_elem* e;
+//  struct list_elem* e;
     for ( e  = list_begin(cur->returned_children);
 	  e != list_end(cur->returned_children);
 	  e  = list_next(e)
@@ -255,12 +296,11 @@ process_wait (tid_t child_tid)
 void
 process_exit (void)
 {
-  //printf("[process_exit] entrance . . . ");
+  printf("[process_exit] entrance . . . ");
 
   struct thread *cur = thread_current ();
 
   /* Add current childs return value to parents return list */
-
   if (cur->p_rel->parent_alive)
   {
     struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
@@ -299,9 +339,9 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  //printf("[process_exit] exit\n");
+  printf("[process_exit] exit\n");
   
-  printf("%s: exit(%d)\n", cur->name, cur->status);
+  printf("%s: exit(%d)\n", cur->name, cur->ret_status);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -392,7 +432,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
-   Returns true if successful, false otherwise. */
+   Returns true if successful, falcpy( sh->cmd_line, cmd_copy, (cmd_len)*sizeof(cse otherwise. */
 bool
 load (const char* file_name, const char *cmd_line, void (**eip) (void), void **esp) 
 {
@@ -468,7 +508,7 @@ load (const char* file_name, const char *cmd_line, void (**eip) (void), void **e
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-#define STACK_DEBUG
+//#define STACK_DEBUG
 
 #ifdef STACK_DEBUG
   printf("*esp is %p\nstack contents:\n", *esp);

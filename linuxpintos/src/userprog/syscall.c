@@ -46,7 +46,7 @@ check_user_ptr(const void* ptr)
 }
 
 static bool
-check_ptr(const void* ptr)
+check_kernel_ptr(const void* ptr)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
@@ -112,9 +112,9 @@ call_exit(struct intr_frame* f, int status)
 {
   //printf("[call_exit] entrance . . . ");
   struct thread* cur = thread_current();
-  
+
   f->eax = status;
-  cur->status = status;
+  cur->ret_status = status;
 
   thread_exit();
 }
@@ -233,7 +233,7 @@ call_write(struct intr_frame *f, int file_descriptor, void* buffer, unsigned siz
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  if ( check_user_ptr(f->esp) && NULL != f->esp )
+  if ( check_user_ptr(f->esp) )
   {
     unsigned syscall_nr = *(unsigned*)f->esp;
     int s;
@@ -262,6 +262,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_WAIT:
 	if (check_user_ptr(f->esp+4))
 	{
+	  
 	  call_wait( f, *(tid_t*)(f->esp+4) );
 	}
 	else
@@ -282,18 +283,18 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     
       case SYS_OPEN:
-	printf("sp: %p\n", f->esp);
-	printf("sp->str-ptr: %p\n", *(char**)(f->esp+4));
+//	printf("sp: %p\n", f->esp);
+//	printf("sp->str-ptr: %p\n", *(char**)(f->esp+4));
 	if ( check_user_str_ptr( *(char**)(f->esp+4) ) )
 	{
-	  printf("Got good ptr\n");
+//	  printf("Got good ptr\n");
 	  char* filename = *(char**)(f->esp+4);
 	  call_open(f, filename);
 
 	}
 	else
 	{
-	  printf("Got bad ptr\n");
+	//  printf("Got bad ptr\n");
 	  call_exit(f, -1);
 	}
         break;

@@ -53,23 +53,6 @@ struct kernel_thread_frame
 
 
 
-
-/* Thread waiting state implementation 
-void thread_add_to_waiting (struct thread* f, int64_t tick)
-{
-  struct waiting_thread_list_elem waiting_thread;
-  waiting_thread.thread = f;
-  waiting_thread.ready_tick = tick;
-
-  list_push_back(&waiting_list, &waiting_thread.elem );
-  schedule();
-}
-*/
-
-
-
-
-
 #ifdef USERPROG
 /* Filedescriptor manager */
 
@@ -318,20 +301,18 @@ thread_create (const char *name, int priority,
     lock_init(cur->c_rel->return_lock);
 
     cur->returned_children = (struct list*)( malloc(sizeof(struct list)) );
+    cur->children_tids = (struct list*)( malloc(sizeof(struct list)) );
 
     list_init( cur->returned_children );
-    list_init( &cur->children_tids ); 
+    list_init( cur->children_tids ); 
 //  printf("name: %s\n", cur->name);
 //  printf("sema ptr: %p\n", cur->c_rel->p_sema);
 //  printf("\n");
 //  printf("\n");
   }
 
-  struct child_tid new_tid;
-  new_tid.tid = tid;
-  list_push_back( &cur->children_tids, &new_tid.elem );
 
-  if (cur->returned_children == NULL)
+  if (cur->returned_children == NULL)  // Should be handled by the if statement above
   {
     cur->returned_children = (struct list*)( malloc(sizeof(struct list)) );
     list_init(cur->returned_children);
@@ -357,7 +338,8 @@ thread_create (const char *name, int priority,
   t->c_rel->return_lock = t->return_lock;
   lock_init(t->return_lock);
 
-  list_init( &t->children_tids );
+  t->children_tids = (struct list*)( malloc(sizeof(struct list)) );
+  list_init( t->children_tids );
 
 
 
@@ -446,9 +428,11 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
+  printf("before process_exit\n");
 #ifdef USERPROG
   process_exit ();
 #endif
+  printf("after process_exit\n");
 
   /* Just set our status to dying and schedule another process.
      We will be destroyed during the call to schedule_tail(). */
@@ -606,7 +590,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
