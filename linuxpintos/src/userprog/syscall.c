@@ -134,6 +134,7 @@ call_wait(struct intr_frame* f, tid_t tid)
 {
 //  printf("SYSC: CALL_WAIT\n");
   int return_val = process_wait(tid);
+  printf("awaited return: %d\n", return_val);
   f->eax = return_val;
 //  printf("Exit SYSC\n");
 }
@@ -141,10 +142,12 @@ call_wait(struct intr_frame* f, tid_t tid)
 static void
 call_create(struct intr_frame *f, char* filename_ptr, off_t file_size)
 {
-  if ( *filename_ptr != '\0' && filesys_create( filename_ptr, file_size) )
-    f->eax = 1;
+  printf("In call_create\n");
+  if ( *filename_ptr != '\0' && filesys_create( filename_ptr, file_size) ) // CALL_EXIT(-1) happens somewhere between the two prints in this function overriding this functions return; thereby failing a lot of tests.
+    f->eax = 1; // True
   else	
-    f->eax = 0;
+    f->eax = 0; // False
+  printf("Exiting call_create\n");
 }
 
 static void
