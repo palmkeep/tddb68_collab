@@ -136,7 +136,11 @@ call_exec( struct intr_frame* f, char* cmd_line )
 {
   tid_t pid = process_execute(cmd_line);
 
-  if (pid == TID_ERROR) { f->eax =  -1; }
+  if (pid == TID_ERROR) {
+    //f->eax =  -1;
+    printf("I get here");
+    call_exit(f,-1); // Think it should be this way
+  }
   else			{ f->eax = pid; }
 }
 
@@ -223,7 +227,8 @@ call_read(struct intr_frame *f)
       file_struct = get_file_from_fd(current_thread, fd);
       if (file_struct == NULL)
       {
-        f->eax = -1;// Error reading file, return -1 error code
+        call_exit(f,-1);//might be bad???
+//        f->eax = -1;// Error reading file, return -1 error code
       }
       else
       {

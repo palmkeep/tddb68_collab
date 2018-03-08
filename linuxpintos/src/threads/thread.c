@@ -84,6 +84,7 @@ int add_file_to_fd(struct thread* curr_thread, char* filename)
 struct file* get_file_from_fd(struct thread* curr_thread, int fd)
 {
   if (LEN_FILE_LIST < fd-2) return NULL;
+  else if(curr_thread->file_tracker[fd-2]==NULL) return NULL;
   return curr_thread->file_tracker[fd-2];
 }
 
