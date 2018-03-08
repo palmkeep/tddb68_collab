@@ -279,9 +279,11 @@ process_wait (tid_t child_tid)
     }
     lock_release( cur->return_lock );
   }
+  
 
-//printf("[process_wait] exit \n");
-  return returned_child->tid;
+//  printf("Found childs return\nChild tid: %d | Child return: %d\n", returned_child->tid, returned_child->returned_val);
+//  printf("[process_wait] exit with status: %d \n", returned_child->returned_val);
+  return returned_child->returned_val;
 }
 
 /* Free the current process's resources. */
