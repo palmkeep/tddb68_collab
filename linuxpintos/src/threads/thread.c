@@ -168,7 +168,7 @@ thread_start (void)
 //printf("[thread_start entrance] . . . ");
   
   /* Create the idle thread. */
-  printf("Thread_start entrance\n");
+//  printf("Thread_start entrance\n");
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
