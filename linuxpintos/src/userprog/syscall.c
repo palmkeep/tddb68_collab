@@ -16,6 +16,8 @@
 #include "lib/kernel/stdio.h"
 #include "lib/kernel/console.h"
 
+#include "lib/string.h"
+
 #include "devices/input.h"
 
 #include "threads/vaddr.h"
@@ -45,6 +47,7 @@ check_user_ptr(const void* ptr)
   }
 }
 
+/*
 static bool
 check_kernel_ptr(const void* ptr)
 {
@@ -61,6 +64,7 @@ check_kernel_ptr(const void* ptr)
     return true;
   }
 }
+*/
 
 static bool
 check_user_str_ptr(const char* ptr)
@@ -115,7 +119,7 @@ call_exit(struct intr_frame* f, int status)
 
   f->eax = status;
   cur->ret_status = status;
-
+  
   thread_exit();
 }
 
@@ -134,7 +138,7 @@ call_wait(struct intr_frame* f, tid_t tid)
 {
 //  printf("SYSC: CALL_WAIT\n");
   int return_val = process_wait(tid);
-  printf("awaited return: %d\n", return_val);
+//  printf("awaited return: %d\n", return_val);
   f->eax = return_val;
 //  printf("Exit SYSC\n");
 }
@@ -142,12 +146,21 @@ call_wait(struct intr_frame* f, tid_t tid)
 static void
 call_create(struct intr_frame *f, char* filename_ptr, off_t file_size)
 {
-  printf("In call_create\n");
-  if ( *filename_ptr != '\0' && filesys_create( filename_ptr, file_size) ) // CALL_EXIT(-1) happens somewhere between the two prints in this function overriding this functions return; thereby failing a lot of tests.
-    f->eax = 1; // True
-  else	
-    f->eax = 0; // False
-  printf("Exiting call_create\n");
+  if ( strlen( filename_ptr ) != 0  )
+  {
+    if ( filesys_create( filename_ptr, file_size )  )
+    {
+      f->eax = 1;
+    }
+    else
+    {
+      f->eax = 0;
+    }
+  }
+  else
+  {
+    f->eax = 0;
+  }
 }
 
 static void
@@ -302,7 +315,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
         break;
   
-      case SYS_CLOSE:
+      
+       case SYS_CLOSE:
         call_close(f);
         break;
   
@@ -311,7 +325,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         break; 
   
       case SYS_WRITE:
-	if ( check_user_ptr(f->esp+4) && check_user_str_ptr(f->esp+8) && check_user_ptr(f->esp+12) )
+	if ( check_user_ptr(f->esp+4) && check_user_ptr(f->esp+8) && check_user_str_ptr(*(char**)(f->esp+8)) && check_user_ptr(f->esp+12) )
 	{
 	  call_write(f, *(int*)(f->esp+4), *(void**)(f->esp+8), *(unsigned*)(f->esp+12));
 	}

@@ -220,7 +220,7 @@ process_wait (tid_t child_tid)
   struct list_elem* e;
 
 
-  printf("thread name: %s\n", cur->name);
+//  printf("thread name: %s\n", cur->name);
   if ( !list_empty( &cur->children_tids ) )
   {
     bool is_waitable = false;
@@ -236,14 +236,20 @@ process_wait (tid_t child_tid)
 	break;
       }
     }
-    if (!is_waitable) { printf("Exit with -1 from process_wait\n"); return -1; }
+    if (!is_waitable && cur->name != "main\0") 
+    {
+//      printf("exit proc_wait\n");
+      return -1;
+    }
   }
-  else { printf("Exit with -1 from process_wait\n"); return -1; }
+//  else if ( cur->name != "main\0" ) {
+//    printf("exit proc_wait\n");
+//    return -1;
+//  }
 
   ret = list_entry(e, struct child_tid, elem);
   list_remove( &ret->elem );
   free(ret); 
-  printf("HEEEEELLLO\n");
   
 
   cur->c_rel->awaited_tid = child_tid;
@@ -307,7 +313,6 @@ process_exit (void)
     child_return->tid = cur->tid;
     child_return->returned_val = cur->ret_status;
 
-    //printf("Parent is alive\n");
     lock_acquire(cur->p_rel->return_lock);
 
     struct list* return_list = cur->p_rel->return_list;
@@ -315,17 +320,16 @@ process_exit (void)
 
     lock_release(cur->p_rel->return_lock);
 
-//  printf("Sema up parent\n");
     sema_up( cur->p_rel->p_sema );
-//  printf("Parent sema ptr: %p\n", cur->p_rel->p_sema);
     cur->p_rel->alive_count -= 1;
   }
-  //else { printf("Parent is not alive\n"); }
 
   uint32_t *pd;
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
+
+  printf("%s: exit(%d)\n", cur->name, cur->ret_status);
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
@@ -339,9 +343,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  printf("[process_exit] exit\n");
-  
-  printf("%s: exit(%d)\n", cur->name, cur->ret_status);
+
+//printf("[process_exit] exit\n");
 }
 
 /* Sets up the CPU for running user code in the current
