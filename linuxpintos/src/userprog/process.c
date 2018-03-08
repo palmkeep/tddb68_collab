@@ -129,7 +129,7 @@ process_execute (const char* command_line)
   sema_down(p_sp);    // Wait for child to load
   if (sh->c_status == TID_ERROR)
   {
-    palloc_free_page (name_copy);
+    free(sh);
     return TID_ERROR;
   }
 
@@ -170,18 +170,26 @@ start_process (void *shared_info)
   success = load (file_name, cmd_line, &if_.eip, &if_.esp);
 
   struct thread* t = thread_current();
-  if (t->p_rel->parent_alive)
+  if ( !success )
   {
-    //printf("waking parent ");
-    sema_up(sh->p_sp); // Make sure no use of sh vars are below here
+    sh->c_status = TID_ERROR;
   }
+  else
+  {
+    sh->c_status = 1;
+  }
+  sema_up(sh->p_sp); // Make sure no use of sh vars are below here
+
   sh->alive_count -= 1;
   if (sh->alive_count == 0) { free(sh); }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success)
+  {
+    thread_current()->ret_status = -1;
     thread_exit ();
+  }
 
 
   //printf("[start_process exit]\n");
@@ -426,7 +434,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
-   Returns true if successful, falcpy( sh->cmd_line, cmd_copy, (cmd_len)*sizeof(cse otherwise. */
+   Returns true if successful, false otherwise. */
 bool
 load (const char* file_name, const char *cmd_line, void (**eip) (void), void **esp) 
 {

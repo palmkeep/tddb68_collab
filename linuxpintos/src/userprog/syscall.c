@@ -135,13 +135,14 @@ static void
 call_exec( struct intr_frame* f, char* cmd_line )
 {
   tid_t pid = process_execute(cmd_line);
-
   if (pid == TID_ERROR) {
-    //f->eax =  -1;
-    printf("I get here");
-    call_exit(f,-1); // Think it should be this way
+    //call_exit(f,-1); 
+    f->eax = -1;
   }
-  else			{ f->eax = pid; }
+  else
+  { 
+    f->eax = pid;
+  }
 }
 
 static void
