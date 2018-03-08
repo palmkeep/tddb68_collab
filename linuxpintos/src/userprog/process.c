@@ -139,14 +139,8 @@ process_execute (const char* command_line)
   struct thread* cur = thread_current();
   struct child_tid* new_child = (struct child_tid*)( malloc(sizeof(struct child_tid)) );
   new_child->tid = tid;
-  if ( !list_empty( cur->children_tids ) )
-  {
-    list_push_back( cur->children_tids, &new_child->elem );
-  }
-  else
-  {
-    return -1;
-  }
+    
+  list_push_back( cur->children_tids, &new_child->elem );
 
   //printf("[process_execute exit]\n");
   return tid;
@@ -212,16 +206,13 @@ process_wait (tid_t child_tid)
 
   struct thread* cur = thread_current();
 //printf("[process_wait] entrance\n");
-//  printf("By: %s\nfor pid: %d\n", cur->name, child_tid);
+//printf("By: %s | Waiting for pid: %d\n", cur->name, child_tid);
   bool child_returned = false;
   struct child_return* returned_child;
   struct child_tid* ret;
 
+
   struct list_elem* e;
-
-
-//  printf("thread name: %s\n", cur->name);
-  if ( !list_empty( &cur->children_tids ) )
   {
     bool is_waitable = false;
     for ( e  = list_begin(cur->children_tids); 
@@ -238,14 +229,9 @@ process_wait (tid_t child_tid)
     }
     if (!is_waitable && cur->name != "main\0") 
     {
-//      printf("exit proc_wait\n");
       return -1;
     }
   }
-//  else if ( cur->name != "main\0" ) {
-//    printf("exit proc_wait\n");
-//    return -1;
-//  }
 
   ret = list_entry(e, struct child_tid, elem);
   list_remove( &ret->elem );
@@ -294,7 +280,7 @@ process_wait (tid_t child_tid)
     lock_release( cur->return_lock );
   }
 
-  //printf("[process_wait] exit \n");
+//printf("[process_wait] exit \n");
   return returned_child->tid;
 }
 
@@ -302,9 +288,11 @@ process_wait (tid_t child_tid)
 void
 process_exit (void)
 {
-  printf("[process_exit] entrance . . . ");
+//  printf("[process_exit] entrance\n");
 
   struct thread *cur = thread_current ();
+
+  printf("%s: exit(%d)\n", cur->name, cur->ret_status);
 
   /* Add current childs return value to parents return list */
   if (cur->p_rel->parent_alive)
@@ -329,7 +317,6 @@ process_exit (void)
      to the kernel-only page directory. */
   pd = cur->pagedir;
 
-  printf("%s: exit(%d)\n", cur->name, cur->ret_status);
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
@@ -344,7 +331,7 @@ process_exit (void)
       pagedir_destroy (pd);
     }
 
-//printf("[process_exit] exit\n");
+//  printf("[process_exit] exit\n");
 }
 
 /* Sets up the CPU for running user code in the current

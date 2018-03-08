@@ -119,7 +119,7 @@ call_exit(struct intr_frame* f, int status)
 
   f->eax = status;
   cur->ret_status = status;
-  
+
   thread_exit();
 }
 
@@ -136,11 +136,8 @@ call_exec(struct intr_frame* f)
 static void
 call_wait(struct intr_frame* f, tid_t tid)
 {
-//  printf("SYSC: CALL_WAIT\n");
   int return_val = process_wait(tid);
-//  printf("awaited return: %d\n", return_val);
   f->eax = return_val;
-//  printf("Exit SYSC\n");
 }
 
 static void

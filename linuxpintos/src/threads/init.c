@@ -263,6 +263,10 @@ run_task (char **argv)
   
   printf ("Executing '%s':\n", task);
 #ifdef USERPROG
+//  tid_t t;
+//  t = process_execute (task);
+//  printf("INIT thread: \(%s\) is waiting for tid: %d\n", thread_current()->name, t);
+//  process_wait(t);
   process_wait (process_execute (task));
 #else
   run_test (task);
