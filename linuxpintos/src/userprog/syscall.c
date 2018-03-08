@@ -177,6 +177,7 @@ call_open(struct intr_frame *f, char* filename)
   struct thread* current_thread = thread_current();
   int fd = add_file_to_fd(current_thread, filename);
   f->eax = fd;  // Returns -1 if the file could not be opened
+  printf("fd: %d\n");
 }
 
 static void
@@ -354,13 +355,22 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_WRITE:
 	if  ( check_user_ptr( f->esp+4 ) && check_user_ptr( f->esp+12 ) )
 	{
-	  if  ( check_user_ptr( f->esp+8 ) && check_user_buf_ptr( *(void**)(f->esp+8), *(unsigned*)(f->esp+12) ) )
+	  unsigned size = *(unsigned*)(f->esp+12);
+	  if ( size != 0 )
 	  {
-	    call_write(f, *(int*)(f->esp+4), *(void**)(f->esp+8), *(unsigned*)(f->esp+12));
+	    if  ( check_user_ptr( f->esp+8 ) && check_user_buf_ptr( *(void**)(f->esp+8), size ) )
+	    {
+	      call_write(f, *(int*)(f->esp+4), *(void**)(f->esp+8), *(unsigned*)(f->esp+12));
+	    }
+	    else
+	    {
+	      call_exit(f, -1);
+	    }
 	  }
 	  else
 	  {
-	    call_exit(f, -1);
+	    f->eax = 0;
+	    break;
 	  }
 	}
 	else
