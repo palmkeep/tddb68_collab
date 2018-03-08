@@ -40,6 +40,45 @@ typedef int tid_t;
 /* File tracker */
 #define LEN_FILE_LIST 130
 
+/* Help structures*/
+
+struct thread_relation
+{
+  bool parent_alive;
+  struct thread* parent;
+  struct semaphore* p_sema;
+  int alive_count;
+  tid_t awaited_tid;
+  struct lock* return_lock;
+  struct list* return_list;
+};
+
+
+struct child_return
+{
+  tid_t tid;
+  int returned_val;
+  struct list_elem elem;
+};
+
+struct child_tid
+{
+  tid_t tid;
+  struct list_elem elem;
+};
+
+
+/* Waiting thread */
+struct waiting_thread_list_elem
+{
+  struct list_elem elem;
+  struct thread* thread;
+  int64_t num_ticks;
+  int64_t start_tick;
+};
+
+
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -112,22 +151,23 @@ struct thread
     int tracker_avail_ind;
     struct file* file_tracker[LEN_FILE_LIST];
 
-    /* Parent-Child waiting and returns */
-    struct thread* parent;
-    struct list* returned_children;
-    struct lock returned_children_list_lock;
-    tid_t waiting_for_child_id;
-    struct semaphore* waiting_for_child;
-
-    bool parent_relation_exists;
-    struct parent_child_rel* parent_rel;
-
-    bool child_relation_exists;
-    struct parent_child_rel* child_rel;
-
-    /* Thread sleep implementation  */
+    /* Waiting list */
     int64_t wake_tick;
     struct list_elem waiting_elem;
+
+    /* Parent<->child relationship */
+    struct thread_relation* p_rel;
+    struct thread_relation* c_rel;
+
+    struct lock* return_lock;
+    struct list* returned_children;
+    struct list* children_tids;
+
+    tid_t awaited_child_tid;
+    struct semaphore awaiting_child;
+
+    int ret_status;
+
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -180,25 +220,6 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
-
-struct child_return_struct
-{
-  struct list_elem elem;
-  tid_t id;
-  int returned_val;
-};
-
-
-/* Waiting thread */
-struct waiting_thread_list_elem
-{
-  struct list_elem elem;
-  struct thread* thread;
-  int64_t num_ticks;
-  int64_t start_tick;
-};
-
 
 void thread_add_to_waiting (struct thread* f, int64_t wake_tick);
 

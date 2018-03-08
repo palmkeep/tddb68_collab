@@ -9,21 +9,26 @@
 #include "threads/init.h"
 #include "threads/malloc.h"
 
+#include "userprog/process.h"
+#include "userprog/pagedir.h"
+
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 
 #include "lib/kernel/stdio.h"
 #include "lib/kernel/console.h"
 
+#include "lib/string.h"
+
 #include "devices/input.h"
 
 #include "userprog/process.h"
 
 #include "threads/vaddr.h"
-
 #include "threads/synch.h"
 
 #include <stdlib.h>
+
 
 static void syscall_handler (struct intr_frame *);
 
@@ -33,99 +38,125 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-/* Sys-call specific functions */
-static void 
-call_exit(struct intr_frame *f)
+static bool
+check_user_ptr(const void* ptr)
 {
-  /* We need to create a list of pid+return that every parent thread keeps track of
-   * All children need a pointer to their parent so that they can add their return-
-   * value to the list mentioned in prev. sentence.
-   * */
+  struct thread *cur = thread_current ();
+  uint32_t *pd;
+  pd = cur->pagedir;
 
-  printf("call_exit entrance\n");
-  struct thread* parent = thread_current()->parent;
-  struct thread* t = thread_current();
-  int status = *(int*)(f->esp+4);
-  f->eax = status;
-  
-  
-  struct child_return_struct* child_return = (struct child_return_struct*)( malloc(sizeof(struct child_return_struct)) );
-  child_return->id = t->tid;
-  child_return->returned_val = status;
-
-  struct list* return_list = NULL;
-
-  printf("thread ptr: %p\n", t);
-  printf("parent_rel ptr: %p\n", t->parent_rel);
-  printf("parent ptr: %p\n", t->parent);
-//  printf("return_list ptr: %p\n", t->parent_rel->return_list);
-  printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
-  if (t->parent == NULL)
+  if ( !is_user_vaddr(ptr) || NULL == ptr || NULL == pagedir_get_page(pd, ptr) )
   {
-    printf("No ptr to parent\n"); 
-  }
-  else if (t->parent != NULL && t->parent_rel == NULL )
-  {
-    printf("Set $return_list with new list\n");
-
-    lock_acquire( &(t->parent->returned_children_list_lock) );
-    t->parent->returned_children = (struct list *)( malloc(sizeof(struct list)) );
-    list_init(t->parent->returned_children);
-    printf("New list ptr: %p\n", t->parent->returned_children);
-    return_list = t->parent->returned_children; 
-    lock_release( &(t->parent->returned_children_list_lock) );
-
+    return false;
   }
   else
   {
-    printf("Set $return_list with parent_rel\n");
-    return_list = t->parent_rel->return_list;
+    return true;
+  }
+}
+
+/*
+static bool
+check_kernel_ptr(const void* ptr)
+{
+  struct thread *cur = thread_current ();
+  uint32_t *pd;
+  pd = cur->pagedir; // ???
+
+  if ( !is_kernel_vaddr(ptr) || NULL == ptr )
+  {
+    return false;
+  }
+  else
+  {
+    return true;
+  }
+}
+*/
+
+static bool
+check_user_str_ptr(const char* ptr)
+{
+  struct thread *cur = thread_current ();
+  uint32_t *pd;
+  pd = cur->pagedir;
+
+  int i = 0;
+  char c = *(ptr+i);
+  do
+  {
+    if ( NULL == pagedir_get_page(pd, ptr+i) ) { return false; }
+    c = *(ptr+(i++));
+  } while( c != '\0');
+
+  if ( NULL == pagedir_get_page(pd, ptr+i) ) { return false; } // Check nullptr
+
+  if (i != 0) { return true; }
+	      { return false;}
+}
+
+
+static bool
+check_user_buf_ptr(const char* ptr, const int size)
+{
+  struct thread *cur = thread_current ();
+  uint32_t *pd;
+  pd = cur->pagedir;
+
+  int i = 0;
+  while (i < size)
+  {
+    if ( NULL == pagedir_get_page(pd, ptr+i) ) { return false; }
   }
 
-  printf("Insert child_return into parents list:\n");
-  if (return_list != NULL) // Might want to remove if we do not need the sanity-check
-  {
-    printf("push child over\n");
-    list_push_back( return_list, &child_return->elem );
-  }
+  if (i != 0) { return true; }
+	      { return false;}
+}
 
-  printf("Insert completed\n");
 
-  /*
-  if (thread_current()->tid == parent->waiting_for_child_id)
-  {
-    sema_up(parent->waiting_for_child);
-  }*/
 
-  printf("%s: exit(%d)\n", thread_current()->name, status);
 
-  //process_exit();     // Free process resources && sema_up parent
+
+/* Sys-call specific functions */
+static void 
+call_exit(struct intr_frame* f, int status)
+{
+  f->eax = status;
+  thread_current()->ret_status = status;
+
   thread_exit();
-  printf("call_exit exit\n");
-
 }
 
 static void
-call_wait(struct intr_frame *f)
+call_exec(struct intr_frame* f)
 {
-  printf("I called wait \n");
-  struct thread* t = thread_current();
+  const char* cmd_line = *(char**)(f->esp+4); // No error correction  
+  tid_t pid = process_execute(cmd_line);
 
-  tid_t child_id = *(tid_t*)(f->esp+4);
-
-  int returned_val = process_wait(child_id);
-
-  f->eax = returned_val;
+  if (pid == TID_ERROR) { f->eax =  -1; }
+  else			{ f->eax = pid; }
 }
 
 static void
-call_create(struct intr_frame *f)
+call_wait(struct intr_frame* f, tid_t tid)
 {
-  char* filename_pointer = *(char**)(f->esp+4);
-  off_t file_size = *(unsigned*)(f->esp+8);
-  if ( filesys_create( filename_pointer, file_size) )
+  int return_val = process_wait(tid);
+  f->eax = return_val;
+}
+
+static void
+call_create(struct intr_frame *f, char* filename_ptr, off_t file_size)
+{
+  if ( strlen( filename_ptr ) != 0  )
   {
-    f->eax = 1;
+    if ( filesys_create( filename_ptr, file_size )  )
+    {
+      f->eax = 1;
+    }
+    else
+    {
+      f->eax = 0;
+    }
   }
   else
   {
@@ -134,9 +165,8 @@ call_create(struct intr_frame *f)
 }
 
 static void
-call_open(struct intr_frame *f)
+call_open(struct intr_frame *f, char* filename)
 {
-  char* filename = *(char**)(f->esp+4);
   struct thread* current_thread = thread_current();
   int fd = add_file_to_fd(current_thread, filename);
   f->eax = fd;  // Returns -1 if the file could not be opened
@@ -145,9 +175,15 @@ call_open(struct intr_frame *f)
 static void
 call_close(struct intr_frame *f)
 {
-  int fd = *(int*)(f->esp+4);
-  struct thread* current_thread = thread_current();
-  close_file_from_fd(current_thread, fd);
+  if(check_user_ptr(f->esp+4) && ((*(int*)(f->esp+4)) != 0 && (*(int*)(f->esp+4) != 1)) )
+  {
+    int fd = *(int*)(f->esp+4);
+    struct thread* current_thread = thread_current();
+    close_file_from_fd(current_thread, fd);
+  }else
+  {
+    call_exit(f,-1);//tried to be fishy 
+  }
 }
 
 
@@ -192,12 +228,8 @@ call_read(struct intr_frame *f)
 }
 
 static void
-call_write(struct intr_frame *f)
+call_write(struct intr_frame *f, int file_descriptor, void* buffer, unsigned size)
 {
-  int file_descriptor = *(int*)(f->esp+4);
-  void* buffer = *(void**)(f->esp+8);
-  unsigned size = *(unsigned*)(f->esp+12);
-
   if (file_descriptor == 1)
   {
     size_t size_buffer = (size_t)size;  // Recast to size_t for use with putbuf()
@@ -217,23 +249,7 @@ call_write(struct intr_frame *f)
 
 
 
-static void
-call_exec(struct intr_frame *f)
-{
-  char* command_line_args = *(char**)(f->esp+4);
-  printf("In CALL_EXEC");
-  if ( is_user_vaddr( (void*)command_line_args) && command_line_args != NULL)
-  {
-    tid_t pid = process_execute(command_line_args);
-    f->eax = pid;
-  }
-  else
-  {
-    // Bad input: Pointer in kernel space or other user space
-    printf("hello failure");
-    f->eax = -1;
-  }
-}
+
 
 
 
@@ -241,51 +257,101 @@ call_exec(struct intr_frame *f)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  unsigned syscall_nr = *(unsigned*)f->esp;
-  //printf("Syscall: %d\n", syscall_nr);
-
-  switch (syscall_nr)
+  if ( check_user_ptr(f->esp) )
   {
-    case SYS_HALT:
-      power_off();
-      break;
-
-    case SYS_EXIT:
-      call_exit(f);
-      break;
-
-    case SYS_WAIT:
-      call_wait(f);
-      break;
-
-    case SYS_CREATE:
-      call_create(f);
-      break;
+    unsigned syscall_nr = *(unsigned*)f->esp;
+    int s;
   
-    case SYS_OPEN:
-      call_open(f);
-      break;
+    switch (syscall_nr)
+    {
+      case SYS_HALT:
+        power_off();
+        break;
 
-    case SYS_CLOSE:
-      call_close(f);
-      break;
+      case SYS_EXIT:
+	if ( 1 == check_user_ptr( (f->esp+4) ) )
+	{
+	  call_exit( f, *(int*)(f->esp+4) );
+	}
+	else
+	{
+	  call_exit(f, -1); // Exit(-1) on bad ptr
+	}
+        break;
 
-    case SYS_READ:
-      call_read(f);
-      break; 
+      case SYS_EXEC:
+        call_exec(f);
+        break;
 
-    case SYS_WRITE:
-      call_write(f);
-      break;
-//removed the prevent from this syscall / Julius 
-    case SYS_EXEC:
-      call_exec(f);
-      break;
+      case SYS_WAIT:
+	if (check_user_ptr(f->esp+4))
+	{
+	  
+	  call_wait( f, *(tid_t*)(f->esp+4) );
+	}
+	else
+	{
+	  call_exit(f, -1);
+	}
+	break;
+  
+      case SYS_CREATE:
+	if ( check_user_str_ptr( *(char**)(f->esp+4) ) && check_user_ptr( (f->esp+8) ) && 0 <= *(off_t*)(f->esp+8)  )
+	{
+	  call_create( f, *(char**)(f->esp+4), *(off_t*)(f->esp+8) );
+	}
+	else
+	{
+	  call_exit(f, -1);
+	}
+        break;
+    
+      case SYS_OPEN:
+//	printf("sp: %p\n", f->esp);
+//	printf("sp->str-ptr: %p\n", *(char**)(f->esp+4));
+	if ( check_user_str_ptr( *(char**)(f->esp+4) ) )
+	{
+//	  printf("Got good ptr\n");
+	  char* filename = *(char**)(f->esp+4);
+	  call_open(f, filename);
 
-    default:
-      thread_exit ();
-      break;
-  } 
+	}
+	else
+	{
+	//  printf("Got bad ptr\n");
+	  call_exit(f, -1);
+	}
+        break;
+  
+      
+       case SYS_CLOSE:
+        call_close(f);
+        break;
+  
+      case SYS_READ:
+        call_read(f);
+        break; 
+  
+      case SYS_WRITE:
+	if ( check_user_ptr(f->esp+4) && check_user_ptr(f->esp+8) && check_user_str_ptr(*(char**)(f->esp+8)) && check_user_ptr(f->esp+12) )
+	{
+	  call_write(f, *(int*)(f->esp+4), *(void**)(f->esp+8), *(unsigned*)(f->esp+12));
+	}
+	else
+	{
+	  call_exit(f, -1);
+	}
+        break;
+  
+      default:
+	call_exit(f, -1); // Bad syscall number passed
+        break;
+    }
+  }
+  else
+  {
+    call_exit(f, -1); // Bad syscall number pointer
+  }
 }
 
 

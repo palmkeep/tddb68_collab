@@ -13,7 +13,6 @@
 #include "threads/vaddr.h"
 #include "devices/timer.h"
 
-#include "threads/synch.h"
 #include "threads/malloc.h"
 
 #ifdef USERPROG
@@ -55,12 +54,8 @@ struct kernel_thread_frame
 
 
 
-
-
 #ifdef USERPROG
 /* Filedescriptor manager */
-
-//avail_id set in thread_init()
 
 int add_file_to_fd(struct thread* curr_thread, char* filename)
 {
@@ -147,8 +142,7 @@ thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  printf("Thread_init entrance\n");
-
+  //printf("[thread_init entrance] . . . ");
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&waiting_list);
@@ -163,26 +157,28 @@ thread_init (void)
 
   initial_thread->tracker_avail_ind = 0;
   memset(initial_thread->file_tracker, '\0', sizeof(initial_thread->file_tracker));
-  printf("Thread_init exit\n");
+  //printf("[thread_init exit]\n");
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
-   Also creates the idle thread. */
+ Also creates the idle thread. */
 void
 thread_start (void) 
 {
+//printf("[thread_start entrance] . . . ");
+  
   /* Create the idle thread. */
   printf("Thread_start entrance\n");
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
-
+  
   /* Start preemptive thread scheduling. */
   intr_enable ();
-
+  
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down (&idle_started);
-  printf("Thread_start exit\n");
+  //printf("[thread_start exit]\n");
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -252,12 +248,9 @@ thread_print_stats (void)
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
 thread_create (const char *name, int priority,
-               thread_func *function, void *aux) 
+               thread_func *function, void *shared_info) 
 {
-  printf("Thread_create entrance\n");
-  /* thread_current() : Parent
-   * t		      : Child
-   * */
+//printf("[thread_create entrance] . . . \n");
   struct thread *t;
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
@@ -279,7 +272,7 @@ thread_create (const char *name, int priority,
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
   kf->function = function;
-  kf->aux = aux;
+  kf->aux = shared_info;
 
   /* Stack frame for switch_entry(). */
   ef = alloc_frame (t, sizeof *ef);
@@ -289,20 +282,73 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
 
-  /* Pass parent-child vars */
-  //t->parent_return_list = &(thread_current()->returned_children);  // Is now contained in the struct $parent_facing_rel
-//  if (thread_current()->child_relation_exists)
-//  {
-//    t->parent_rel = thread_current()->child_rel;
-//    t->parent_relation_exists;
-//  }
+  /* Init thread variables from parent */
+  struct start_process_info* sh = shared_info;  //Mostly handled through p_rel and c_rel
+  struct thread* cur = thread_current();
+
+  /* Relationship with parent */
+
+  // Create a child relation for parent thread if none exists
+  if ( cur->c_rel == NULL)
+  {
+    cur->c_rel = (struct thread_relation*)( malloc(sizeof(struct thread_relation)) );
+    cur->c_rel->parent_alive  = true;
+    cur->c_rel->alive_count   = 1;
+    cur->c_rel->parent	      = cur;
+    cur->c_rel->p_sema	      = (struct semaphore*)( malloc(sizeof(struct semaphore)) );
+    cur->return_lock	      = (struct lock*)( malloc(sizeof(struct lock)) );
+    cur->c_rel->return_lock   = cur->return_lock;
+
+    sema_init(cur->c_rel->p_sema, 0);
+    lock_init(cur->c_rel->return_lock);
+
+    cur->returned_children = (struct list*)( malloc(sizeof(struct list)) );
+    cur->children_tids = (struct list*)( malloc(sizeof(struct list)) );
+
+    list_init( cur->returned_children );
+    list_init( cur->children_tids ); 
+//  printf("name: %s\n", cur->name);
+//  printf("sema ptr: %p\n", cur->c_rel->p_sema);
+//  printf("\n");
+//  printf("\n");
+  }
+
+
+  if (cur->returned_children == NULL)  // Should be handled by the if statement above
+  {
+    cur->returned_children = (struct list*)( malloc(sizeof(struct list)) );
+    list_init(cur->returned_children);
+  }
+  cur->c_rel->return_list = cur->returned_children;
+
+  t->p_rel = cur->c_rel;      // Set childs parent relation to parents child relation
+
+  /* Childs relationship with its children */
+  t->returned_children = (struct list*)( malloc(sizeof(struct list)) );
+  list_init( t->returned_children );
+
+  t->c_rel = (struct thread_relation*)( malloc(sizeof(struct thread_relation)) );
+  t->c_rel->parent_alive  = true;
+  t->c_rel->alive_count	  = 1;
+  t->c_rel->parent	  = t;
+  t->c_rel->p_sema	  = &t->awaiting_child;
+  t->c_rel->return_list	  = t->returned_children;
+
+  sema_init( &t->awaiting_child, 0 );
+
+  t->return_lock = (struct lock*)( malloc(sizeof(struct lock)) );
+  t->c_rel->return_lock = t->return_lock;
+  lock_init(t->return_lock);
+
+  t->children_tids = (struct list*)( malloc(sizeof(struct list)) );
+  list_init( t->children_tids );
+
 
 
   /* Add to run queue. */
   thread_unblock (t);
 
-  printf("Thread_create exit\n");
-
+  //printf("[thread_create] exit new tid: %d\n", tid);
   return tid;
 }
 
@@ -365,13 +411,6 @@ thread_current (void)
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
   ASSERT (is_thread (t));
-
-  
-  if (t->status != THREAD_RUNNING)
-  {
-     printf("Name: %s\nStatus: %d\nMagic: %u\nParPtr: %p\n", t->name, t->status, t->magic, t->parent);
-  }
-  
   ASSERT (t->status == THREAD_RUNNING);
 
   return t;
@@ -389,7 +428,7 @@ thread_tid (void)
 void
 thread_exit (void) 
 {
-  printf("Thread_exit entrance\n");
+//  printf("Thread_exit entrance\n");
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
@@ -400,14 +439,7 @@ thread_exit (void)
   /* Just set our status to dying and schedule another process.
      We will be destroyed during the call to schedule_tail(). */
   intr_disable ();
-
-  printf("thread stat: %d\n", thread_current()->status);
-  printf("Name: %s\nStatus: %d\nMagic: %u\nParPtr: %p\n", t->name, t->status, t->magic, t->parent);
-  printf("ParNom: %s\n", t->parent->name);
-
   thread_current()->status = THREAD_DYING;
-
-  printf("Thread_exit exit\n");
   schedule ();
   NOT_REACHED ();
 }
@@ -550,54 +582,17 @@ is_thread (struct thread *t)
 static void
 init_thread (struct thread *t, const char *name, int priority)
 {
-  printf("Init_thread entrace\n");
+//  printf("Init_thread entrace\n");
   ASSERT (t != NULL);
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
 
-  printf("0\n");
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-
-  t->parent = NULL;
-  t->returned_children = NULL; // Ensure is NULL if not allocated (handles thread="main" which does not enter start_process()
-  lock_init( &(t->returned_children_list_lock) );
-
-  /*
-
-  printf("Init. thread vars.\n");
-
-  // Init. $returned_children
-  printf("Malloc $returned_children\n");
-  t->returned_children = (struct list*)( malloc(sizeof( struct list )) );
-  printf("$returned_children gets ptr: %p\n", t->returned_children);
-  list_init( t->returned_children );
-
-  // Init. $parent_rel
-  t->parent = NULL;
-
-  // Init. $child_rel
-  printf("Malloc $child_rel\n");
-  t->child_rel = (struct parent_child_rel*)( malloc(sizeof( struct parent_child_rel )) );
-  printf("$child_rel gets ptr: %p\n", t->child_rel);
-  printf("Set $child_rel vars:\n");
-
-  t->child_rel->parent_alive = true;
-  t->child_rel->alive_count = 1;
-
-  t->child_relation_exists = true;
-  printf("$child_rel vars. set\n");
-  */
-
-
-
-  printf("Finished init. thread vars.\n");
-
-  printf("Init_thread exit\n");
 }
 
 

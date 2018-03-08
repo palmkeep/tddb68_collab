@@ -1,4 +1,5 @@
 ./linuxpintos/src/examples/
+./linuxpintos/src/utils/
 ./linuxpintos/src/tests/userprog/lib/
 ./linuxpintos/src/utils/
 
