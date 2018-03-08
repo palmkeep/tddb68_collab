@@ -177,6 +177,7 @@ call_open(struct intr_frame *f, char* filename)
   struct thread* current_thread = thread_current();
   int fd = add_file_to_fd(current_thread, filename);
   f->eax = fd;  // Returns -1 if the file could not be opened
+  printf("fd: %d\n");
 }
 
 static void
@@ -259,10 +260,6 @@ call_write(struct intr_frame *f, int file_descriptor, void* buffer, unsigned siz
     off_t size_buffer = (off_t)size;
     struct thread* current_thread = thread_current();
     struct file* file_ptr = get_file_from_fd(current_thread, file_descriptor);
-    if (file_ptr == NULL)
-    {
-      call_exit(f, -1);
-    }
 
     file_write( file_ptr, buffer, size_buffer );
     f->eax = size_buffer;
