@@ -97,16 +97,20 @@ check_user_str_ptr(const char* ptr)
 
 
 static bool
-check_user_buf_ptr(const char* ptr, const int size)
+check_user_buf_ptr(const char* ptr, const unsigned size)
 {
+//  printf("CHECK BUFFER\n");
   struct thread *cur = thread_current ();
   uint32_t *pd;
   pd = cur->pagedir;
 
-  int i = 0;
+  unsigned i = 0;
+
+//  printf("size: %d\n", size);
   while (i < size)
   {
     if ( NULL == pagedir_get_page(pd, ptr+i) ) { return false; }
+    i++;
   }
 
   if (i != 0) { return true; }
@@ -191,42 +195,43 @@ call_read(struct intr_frame *f)
 {
   if(check_user_ptr(*(void**)(f->esp+8))) 
   {
-  // SYS_READ Does not work for large buffers
-  int fd = *(int*)(f->esp+4);
-  void* buffer = *(void**)(f->esp+8);
-  off_t size = (off_t)*(unsigned*)(f->esp+12);
-
-  struct thread* current_thread = thread_current();
-
-  struct file* file_struct;
-  if (fd == 0)  // Read from keyboard
-  {
-    off_t it = 0;
-    while (it <	size)
+    // SYS_READ Does not work for large buffers
+    int fd = *(int*)(f->esp+4);
+    void* buffer = *(void**)(f->esp+8);
+    off_t size = (off_t)*(unsigned*)(f->esp+12);
+  
+    struct thread* current_thread = thread_current();
+  
+    struct file* file_struct;
+    if (fd == 0)  // Read from keyboard
     {
-      uint8_t ch = input_getc();
-      ((uint8_t*)buffer)[it] = ch;
-      it++;
+      off_t it = 0;
+      while (it <	size)
+      {
+        uint8_t ch = input_getc();
+        ((uint8_t*)buffer)[it] = ch;
+        it++;
+      }
+      f->eax = size;
     }
-    f->eax = size;
-  }
-  else if (fd == 1) // Read from STDOUT
-  {
-    f->eax = -1;
-  }
-  else              // Read from file
-  {
-    file_struct = get_file_from_fd(current_thread, fd);
-    if (file_struct == NULL)
+    else if (fd == 1) // Read from STDOUT
     {
-      f->eax = -1;// Error reading file, return -1 error code
+      f->eax = -1;
     }
-    else
+    else              // Read from file
     {
-      f->eax = file_read( file_struct, buffer, size );  // Return number of bytes read
+      file_struct = get_file_from_fd(current_thread, fd);
+      if (file_struct == NULL)
+      {
+        f->eax = -1;// Error reading file, return -1 error code
+      }
+      else
+      {
+        f->eax = file_read( file_struct, buffer, size );  // Return number of bytes read
+      }
     }
   }
-  }else
+  else
   {
     call_exit(f,-1); 
     //f->eax = -1;
@@ -240,6 +245,7 @@ call_write(struct intr_frame *f, int file_descriptor, void* buffer, unsigned siz
   {
     size_t size_buffer = (size_t)size;  // Recast to size_t for use with putbuf()
     char* char_buffer = (char*)buffer;  // Recast to write as char to console
+
     putbuf(char_buffer, size_buffer);
     f->eax = size_buffer;               // Output amount of chars written
   }
@@ -248,6 +254,7 @@ call_write(struct intr_frame *f, int file_descriptor, void* buffer, unsigned siz
     off_t size_buffer = (off_t)size;
     struct thread* current_thread = thread_current();
     struct file* file_ptr = get_file_from_fd(current_thread, file_descriptor);
+
     file_write( file_ptr, buffer, size_buffer );
     f->eax = size_buffer;
   }
@@ -298,8 +305,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
       case SYS_WAIT:
 	if (check_user_ptr(f->esp+4))
-	{
-	  
+	{	  
 	  call_wait( f, *(tid_t*)(f->esp+4) );
 	}
 	else
@@ -315,24 +321,20 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	else
 	{
-	  call_exit(f, -1);
+	  call_exit(f, -1); // Bad ptr
 	}
         break;
     
       case SYS_OPEN:
-//	printf("sp: %p\n", f->esp);
-//	printf("sp->str-ptr: %p\n", *(char**)(f->esp+4));
 	if ( check_user_str_ptr( *(char**)(f->esp+4) ) )
 	{
-//	  printf("Got good ptr\n");
 	  char* filename = *(char**)(f->esp+4);
 	  call_open(f, filename);
 
 	}
 	else
 	{
-	//  printf("Got bad ptr\n");
-	  call_exit(f, -1);
+	  call_exit(f, -1); // Bad ptr
 	}
         break; 
       
@@ -345,12 +347,20 @@ syscall_handler (struct intr_frame *f UNUSED)
         break; 
   
       case SYS_WRITE:
-	if ( check_user_ptr(f->esp+4) && check_user_ptr(f->esp+8) && check_user_str_ptr(*(char**)(f->esp+8)) && check_user_ptr(f->esp+12) )
+	if  ( check_user_ptr( f->esp+4 ) && check_user_ptr( f->esp+12 ) )
 	{
-	  call_write(f, *(int*)(f->esp+4), *(void**)(f->esp+8), *(unsigned*)(f->esp+12));
+	  if  ( check_user_ptr( f->esp+8 ) && check_user_buf_ptr( *(void**)(f->esp+8), *(unsigned*)(f->esp+12) ) )
+	  {
+	    call_write(f, *(int*)(f->esp+4), *(void**)(f->esp+8), *(unsigned*)(f->esp+12));
+	  }
+	  else
+	  {
+	    call_exit(f, -1);
+	  }
 	}
 	else
 	{
+	  //ASD
 	  call_exit(f, -1);
 	}
         break;
