@@ -186,6 +186,8 @@ call_close(struct intr_frame *f)
 static void
 call_read(struct intr_frame *f)
 {
+  if(check_user_ptr(*(void**)(f->esp+8))) 
+  {
   // SYS_READ Does not work for large buffers
   int fd = *(int*)(f->esp+4);
   void* buffer = *(void**)(f->esp+8);
@@ -221,6 +223,11 @@ call_read(struct intr_frame *f)
     {
       f->eax = file_read( file_struct, buffer, size );  // Return number of bytes read
     }
+  }
+  }else
+  {
+    call_exit(f,-1); 
+    //f->eax = -1;
   }
 }
 
