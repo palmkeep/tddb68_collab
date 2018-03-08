@@ -171,9 +171,15 @@ call_open(struct intr_frame *f, char* filename)
 static void
 call_close(struct intr_frame *f)
 {
-  int fd = *(int*)(f->esp+4);
-  struct thread* current_thread = thread_current();
-  close_file_from_fd(current_thread, fd);
+  if(check_user_ptr(f->esp+4) && ((*(int*)(f->esp+4)) != 0 && (*(int*)(f->esp+4) != 1)) )
+  {
+    int fd = *(int*)(f->esp+4);
+    struct thread* current_thread = thread_current();
+    close_file_from_fd(current_thread, fd);
+  }else
+  {
+    call_exit(f,-1);//tried to be fishy 
+  }
 }
 
 
