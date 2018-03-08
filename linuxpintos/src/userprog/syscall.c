@@ -128,9 +128,8 @@ call_exit(struct intr_frame* f, int status)
 }
 
 static void
-call_exec(struct intr_frame* f)
+call_exec( struct intr_frame* f, char* cmd_line )
 {
-  const char* cmd_line = *(char**)(f->esp+4); // No error correction  
   tid_t pid = process_execute(cmd_line);
 
   if (pid == TID_ERROR) { f->eax =  -1; }
@@ -280,7 +279,14 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
 
       case SYS_EXEC:
-        call_exec(f);
+	if ( check_user_ptr( f->esp+4 ) && check_user_str_ptr( *(char**)(f->esp+4) ) )
+	{
+          call_exec(f, *(char**)(f->esp+4) );
+	}
+	else
+	{
+	  call_exit(f, -1);
+	}
         break;
 
       case SYS_WAIT:
@@ -321,8 +327,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	//  printf("Got bad ptr\n");
 	  call_exit(f, -1);
 	}
-        break;
-  
+        break; 
       
        case SYS_CLOSE:
         call_close(f);
