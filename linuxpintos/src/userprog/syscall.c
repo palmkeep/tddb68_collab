@@ -125,9 +125,11 @@ check_user_buf_ptr(const char* ptr, const unsigned size)
 static void 
 call_exit(struct intr_frame* f, int status)
 {
+  struct thread* cur = thread_current();
   f->eax = status;
-  thread_current()->ret_status = status;
+  cur->ret_status = status;
 
+  printf("%s: exit(%d)\n", cur->name, cur->ret_status);
   thread_exit();
 }
 
@@ -136,7 +138,6 @@ call_exec( struct intr_frame* f, char* cmd_line )
 {
   tid_t pid = process_execute(cmd_line);
   if (pid == TID_ERROR) {
-    //call_exit(f,-1); 
     f->eax = -1;
   }
   else

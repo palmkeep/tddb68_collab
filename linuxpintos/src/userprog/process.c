@@ -21,10 +21,14 @@
 
 #include "threads/synch.h"
 
+#define hello 0
+
 static thread_func start_process NO_RETURN;
 
 static bool load (const char* file_name, const char *cmdline, void (**eip) (void), void **esp);
 
+/* Frees all structures linked in a given list.
+ * Does not call free() on any of the structures own variables. */
 static
 void free_list(struct list* list)
 {
@@ -40,6 +44,9 @@ void free_list(struct list* list)
   }
 }
 
+/* Frees all the variables contained in a thread_relation.
+ * Does not remove the thread_relation itself, this call to
+ * free() must be done elsewhere (preferably right after). */
 static
 void free_relationship_contents( struct thread_relation* rel)
 {
@@ -61,28 +68,28 @@ tid_t
 process_execute (const char* command_line) 
 {
   //printf("[process_execute entrance] . . . ");
+
   char* name_copy;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
-     Otherwise there's a race between the caller and load(). */
+   * Otherwise there's a race between the caller and load(). */
   name_copy = palloc_get_page (0);
   if (name_copy == NULL)
   {
     return TID_ERROR;
   }
 
-  // Make copy of whole command line with only one space between args
+  /* Make copy of whole command line with only one space between args. */
   char* cmd_copy = (char*)( malloc( (1+strlen(command_line)*sizeof(char)) ) );
   strlcpy (cmd_copy, command_line, (1+strlen(command_line))*sizeof(char) );
-
 
   unsigned stri = 0;
   bool prv_ch_sp = true;
   unsigned cmd_len;
   for (stri; stri < strlen(command_line); stri++)
   {
-    if ( cmd_copy[stri] == ' ' ) // Is blankspace
+    if ( cmd_copy[stri] == ' ' )
     {
       if (prv_ch_sp)
       {
@@ -105,7 +112,7 @@ process_execute (const char* command_line)
   }
   stri = strlen(command_line);
   int string_length = strlen(command_line);
-  for (stri;; stri--)
+  for (stri ;; stri--)
   {
     if (cmd_copy[stri] == ' ')
     {
@@ -115,30 +122,33 @@ process_execute (const char* command_line)
     else  { break; }
   }
 
-  // Make copy of filename
+  /* Make copy of filename */
   int it = 0;
   while (cmd_copy[it] != ' ' && cmd_copy[it] != '\0') { it++; }
   strlcpy (name_copy, command_line, (it+1)*sizeof(char));
 
 
-  /* Create a new thread to execute FILE_NAME. */
 
+
+  /* Create a struct containing all the info needed by a new child
+   * from it's parent.
+   * Also used by child to return if it had an issue loading it's code
+   * thereby forcing the child to immediately call thread_exit() on itself. */
+  struct start_process_info* sh = (struct start_process_info*)( malloc(sizeof(struct start_process_info)));
   struct semaphore* p_sp = (struct semaphore*)( malloc(sizeof(struct semaphore)) );
   sema_init (p_sp, 0);
-  struct semaphore* c_sp = (struct semaphore*)( malloc(sizeof(struct semaphore)) );
-  sema_init (c_sp, 0);
-
-  struct start_process_info* sh = (struct start_process_info*)( malloc(sizeof(struct start_process_info)));
-  sh->file_name = (char*)( malloc(strlen(command_line)*sizeof(char)) );
+  
   sh->file_name = name_copy;
 
-  sh->cmd_line = (char*)( malloc( 1+(strlen(command_line) )*sizeof(char) ) );   // +1 for nullchar
-  strlcpy( sh->cmd_line, cmd_copy, (1+cmd_len)*sizeof(char) ); // +1 for nullchar
+  char* cmd_line = (char*)( malloc( 1+(strlen(command_line) )*sizeof(char) ) );   // +1 for nullchar
+  strlcpy( cmd_line, cmd_copy, (1+cmd_len)*sizeof(char) ); // +1 for nullchar
+  sh->cmd_line = cmd_line;
+
   free(cmd_copy);
   sh->p_sp = p_sp;
-  sh->c_sp = c_sp;
-  sh->p_ptr = thread_current();
 
+  /* Copy only the first 16 chars into file_name.
+   * Used by thread_create() to set (struct thread)->name. */
   char file_name[16];
   int i=0;
   for (; i<16 ; i++)
@@ -146,30 +156,40 @@ process_execute (const char* command_line)
     (file_name)[i] = (sh->file_name)[i];
   }
 
+  /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, sh);
 
   if (tid == TID_ERROR)
   {
     palloc_free_page (name_copy);
-    return TID_ERROR; // FAILURE TO thread_create()
+
+    free(sh->cmd_line);	// Free shared info and it's contents
+    free(sh->p_sp);
+    free(sh);
+    return TID_ERROR; // FAILURE to thread_create()
   }
 
 
   sema_down(p_sp);    // Wait for child to load
   if (sh->c_status == TID_ERROR)
   {
+    // child has called palloc_free_page()
+    
+    free(sh->cmd_line);	 // Free shared info and it's contents
+    free(sh->p_sp);
     free(sh);
-    return TID_ERROR;
+    return TID_ERROR; // FAILURE to load
   }
 
-  sh->alive_count -= 1;
-  if (sh->alive_count == 0) { free(sh); }
+  free(sh->cmd_line); // Free shared info and it's contents 
+  free(sh->p_sp);
+  free(sh);
 
-  // 
+
+  // Create a child_tid entry in this (parent) threads list of children_tids
   struct thread* cur = thread_current();
   struct child_tid* new_child = (struct child_tid*)( malloc(sizeof(struct child_tid)) );
   new_child->tid = tid;
-  
   list_push_back( cur->children_tids, &new_child->elem ); // No synch required, only used by thread_current()
 
   //printf("[process_execute exit]\n");
@@ -209,9 +229,6 @@ start_process (void *shared_info)
   }
   thread_current()->p_rel->alive_count += 1;
   sema_up(sh->p_sp); // Make sure no use of sh vars are below here
-
-  sh->alive_count -= 1;
-  if (sh->alive_count == 0) { free(sh); }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -338,7 +355,6 @@ process_exit (void)
   struct thread_relation* parent_rel  = cur->p_rel;
 
 
-  printf("%s: exit(%d)\n", cur->name, cur->ret_status);
 
   /* Add current childs return value to parents return list */
   if (parent_rel->parent_alive)
@@ -360,8 +376,8 @@ process_exit (void)
   // CHILD RELATIONSHIP
   // Dec. CHILD and free if alive_count == 0
   lock_acquire( child_rel->alive_lock );
-  child_rel->alive_count -= 1;
 
+  child_rel->alive_count -= 1;
   if (child_rel->alive_count == 0)
   {
     free_relationship_contents( child_rel ); //Causes problems
@@ -377,6 +393,7 @@ process_exit (void)
   // PARENT RELATIONSHIP
   // Dec. alive_count and free if alive_count == 0
   lock_acquire( parent_rel->alive_lock );
+
   parent_rel->alive_count -= 1;
   if (parent_rel->alive_count == 0)
   {
@@ -388,16 +405,6 @@ process_exit (void)
   {
     lock_release( parent_rel->alive_lock );
   }
-/*
-  printf("Free child relationship\n");
-  printf("Current thread is: %s\n", cur->name);
-  printf("Current thread ptr: %p %p\n", thread_current(), cur);
-  */
-
-/*
-  */
-
-//  printf("Free parent relationship\n");
 
 
 
