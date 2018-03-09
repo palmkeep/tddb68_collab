@@ -40,6 +40,7 @@ struct thread_relation
   bool parent_alive;
   struct thread* parent;
   struct semaphore* p_sema;
+  struct lock* alive_lock;
   int alive_count;
   tid_t awaited_tid;
   struct lock* return_lock;
@@ -158,7 +159,6 @@ struct thread
     struct list* children_tids;
 
     tid_t awaited_child_tid;
-    struct semaphore awaiting_child;
 
     int ret_status;
 

@@ -105,6 +105,8 @@ static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
 
 /* Scheduling. */
+/* CHANGED FOR DEBUG PURPOSES; should be 4 */
+//
 #define TIME_SLICE 1            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
@@ -294,13 +296,16 @@ thread_create (const char *name, int priority,
   {
     cur->c_rel = (struct thread_relation*)( malloc(sizeof(struct thread_relation)) );
     cur->c_rel->parent_alive  = true;
+    cur->c_rel->alive_lock    = (struct lock*)( malloc(sizeof(struct lock)));
     cur->c_rel->alive_count   = 1;
     cur->c_rel->parent	      = cur;
-    cur->c_rel->p_sema	      = (struct semaphore*)( malloc(sizeof(struct semaphore)) );
+    cur->c_rel->p_sema	      = (struct semaphore*)( malloc(sizeof(struct semaphore)) ); 
     cur->return_lock	      = (struct lock*)( malloc(sizeof(struct lock)) );
     cur->c_rel->return_lock   = cur->return_lock;
 
+    // Init sema and locks
     sema_init(cur->c_rel->p_sema, 0);
+    lock_init(cur->c_rel->alive_lock);
     lock_init(cur->c_rel->return_lock);
 
     cur->returned_children = (struct list*)( malloc(sizeof(struct list)) );
@@ -326,12 +331,14 @@ thread_create (const char *name, int priority,
 
   t->c_rel = (struct thread_relation*)( malloc(sizeof(struct thread_relation)) );
   t->c_rel->parent_alive  = true;
+  t->c_rel->alive_lock    = (struct lock*)( malloc(sizeof(struct lock)));
   t->c_rel->alive_count	  = 1;
   t->c_rel->parent	  = t;
-  t->c_rel->p_sema	  = &t->awaiting_child;
+  t->c_rel->p_sema	  = (struct semaphore*)( malloc(sizeof(struct semaphore)) );
   t->c_rel->return_list	  = t->returned_children;
 
-  sema_init( &t->awaiting_child, 0 );
+  sema_init( t->c_rel->p_sema, 0 );
+  lock_init( t->c_rel->alive_lock );
 
   t->return_lock = (struct lock*)( malloc(sizeof(struct lock)) );
   t->c_rel->return_lock = t->return_lock;
@@ -339,7 +346,6 @@ thread_create (const char *name, int priority,
 
   t->children_tids = (struct list*)( malloc(sizeof(struct list)) );
   list_init( t->children_tids );
-
 
 
   /* Add to run queue. */

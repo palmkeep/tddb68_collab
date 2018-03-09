@@ -28,7 +28,6 @@ static bool load (const char* file_name, const char *cmdline, void (**eip) (void
 static
 void free_list(struct list* list)
 {
-  printf("Hi\n");
   struct list_elem* e;
   for ( e  = list_begin(list); 
 	e != list_end(list);
@@ -42,26 +41,15 @@ void free_list(struct list* list)
 }
 
 static
-void free_relationship( struct thread_relation* rel)
+void free_relationship_contents( struct thread_relation* rel)
 {
-  printf("u\n");
   off_t size = sizeof(struct thread);
-  printf("Size of thread structure: %d\n", size);
-  printf("thread ptr: %p\n", thread_current());
   sema_up(rel->p_sema);
-  printf("ptr sema: %p\n", rel->p_sema);
-  free( rel->p_sema );
-
-  printf("l\n");
+  free( rel->p_sema ); 
   free( rel->return_lock );
 
-  printf("o\n");
   free_list( rel->return_list );
-
-  printf("Howdy\n");
   free( rel->return_list );
-
-  printf("Harro\n");
 }
 
 
@@ -346,44 +334,72 @@ process_exit (void)
 //  printf("[process_exit] entrance\n");
 
   struct thread *cur = thread_current ();
+  struct thread_relation* child_rel   = cur->c_rel;
+  struct thread_relation* parent_rel  = cur->p_rel;
+
 
   printf("%s: exit(%d)\n", cur->name, cur->ret_status);
 
   /* Add current childs return value to parents return list */
-  if (cur->p_rel->parent_alive)
+  if (parent_rel->parent_alive)
   {
     struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
     child_return->tid = cur->tid;
     child_return->returned_val = cur->ret_status;
 
-    lock_acquire(cur->p_rel->return_lock);
+    lock_acquire(parent_rel->return_lock);
 
-    struct list* return_list = cur->p_rel->return_list;
+    struct list* return_list = parent_rel->return_list;
     list_push_back(return_list, &child_return->elem);
 
-    lock_release(cur->p_rel->return_lock);
+    lock_release(parent_rel->return_lock);
 
-    sema_up( cur->p_rel->p_sema );
+    sema_up( parent_rel->p_sema );
   }
-  cur->c_rel->alive_count -= 1;
-  cur->p_rel->alive_count -= 1;
+
+  // CHILD RELATIONSHIP
+  // Dec. CHILD and free if alive_count == 0
+  lock_acquire( child_rel->alive_lock );
+  child_rel->alive_count -= 1;
+
+  if (child_rel->alive_count == 0)
+  {
+    free_relationship_contents( child_rel ); //Causes problems
+    lock_release( child_rel->alive_lock );
+    free( child_rel );
+  }
+  else
+  {
+    lock_release( child_rel->alive_lock );
+  }
+
+
+  // PARENT RELATIONSHIP
+  // Dec. alive_count and free if alive_count == 0
+  lock_acquire( parent_rel->alive_lock );
+  parent_rel->alive_count -= 1;
+  if (parent_rel->alive_count == 0)
+  {
+    free_relationship_contents( parent_rel );
+    lock_release( parent_rel->alive_lock );
+    free( parent_rel);
+  }
+  else
+  {
+    lock_release( parent_rel->alive_lock );
+  }
 /*
   printf("Free child relationship\n");
   printf("Current thread is: %s\n", cur->name);
   printf("Current thread ptr: %p %p\n", thread_current(), cur);
-  cur->c_rel->alive_count -= 1;
-  if (cur->c_rel->alive_count == 0)
-  {
-    free_relationship(cur->c_rel);
-  }
+  */
 
-  printf("Free parent relationship\n");
-  cur->p_rel->alive_count -= 1;
-  if (cur->p_rel->alive_count == 0)
-  {
-    free_relationship(cur->p_rel);
-  }
-*/
+/*
+  */
+
+//  printf("Free parent relationship\n");
+
+
 
   uint32_t *pd;
   /* Destroy the current process's page directory and switch back
