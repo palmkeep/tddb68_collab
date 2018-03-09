@@ -308,10 +308,6 @@ thread_create (const char *name, int priority,
 
     list_init( cur->returned_children );
     list_init( cur->children_tids ); 
-//  printf("name: %s\n", cur->name);
-//  printf("sema ptr: %p\n", cur->c_rel->p_sema);
-//  printf("\n");
-//  printf("\n");
   }
 
 

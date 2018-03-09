@@ -25,6 +25,46 @@ static thread_func start_process NO_RETURN;
 
 static bool load (const char* file_name, const char *cmdline, void (**eip) (void), void **esp);
 
+static
+void free_list(struct list* list)
+{
+  printf("Hi\n");
+  struct list_elem* e;
+  for ( e  = list_begin(list); 
+	e != list_end(list);
+	e
+      )
+  {
+    struct child_return* tmp = list_entry(e, struct child_return, elem);
+    e = list_next(e); 
+    free(tmp);
+  }
+}
+
+static
+void free_relationship( struct thread_relation* rel)
+{
+  printf("u\n");
+  off_t size = sizeof(struct thread);
+  printf("Size of thread structure: %d\n", size);
+  printf("thread ptr: %p\n", thread_current());
+  sema_up(rel->p_sema);
+  printf("ptr sema: %p\n", rel->p_sema);
+  free( rel->p_sema );
+
+  printf("l\n");
+  free( rel->return_lock );
+
+  printf("o\n");
+  free_list( rel->return_list );
+
+  printf("Howdy\n");
+  free( rel->return_list );
+
+  printf("Harro\n");
+}
+
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns. Returns the new process's
@@ -40,11 +80,12 @@ process_execute (const char* command_line)
      Otherwise there's a race between the caller and load(). */
   name_copy = palloc_get_page (0);
   if (name_copy == NULL)
+  {
     return TID_ERROR;
-
+  }
 
   // Make copy of whole command line with only one space between args
-  char* cmd_copy = (char*)( malloc( (1+strlen(command_line)*sizeof(char) ) ) );
+  char* cmd_copy = (char*)( malloc( (1+strlen(command_line)*sizeof(char)) ) );
   strlcpy (cmd_copy, command_line, (1+strlen(command_line))*sizeof(char) );
 
 
@@ -140,8 +181,8 @@ process_execute (const char* command_line)
   struct thread* cur = thread_current();
   struct child_tid* new_child = (struct child_tid*)( malloc(sizeof(struct child_tid)) );
   new_child->tid = tid;
-    
-  list_push_back( cur->children_tids, &new_child->elem );
+  
+  list_push_back( cur->children_tids, &new_child->elem ); // No synch required, only used by thread_current()
 
   //printf("[process_execute exit]\n");
   return tid;
@@ -178,6 +219,7 @@ start_process (void *shared_info)
   {
     sh->c_status = 1;
   }
+  thread_current()->p_rel->alive_count += 1;
   sema_up(sh->p_sp); // Make sure no use of sh vars are below here
 
   sh->alive_count -= 1;
@@ -322,8 +364,26 @@ process_exit (void)
     lock_release(cur->p_rel->return_lock);
 
     sema_up( cur->p_rel->p_sema );
-    cur->p_rel->alive_count -= 1;
   }
+  cur->c_rel->alive_count -= 1;
+  cur->p_rel->alive_count -= 1;
+/*
+  printf("Free child relationship\n");
+  printf("Current thread is: %s\n", cur->name);
+  printf("Current thread ptr: %p %p\n", thread_current(), cur);
+  cur->c_rel->alive_count -= 1;
+  if (cur->c_rel->alive_count == 0)
+  {
+    free_relationship(cur->c_rel);
+  }
+
+  printf("Free parent relationship\n");
+  cur->p_rel->alive_count -= 1;
+  if (cur->p_rel->alive_count == 0)
+  {
+    free_relationship(cur->p_rel);
+  }
+*/
 
   uint32_t *pd;
   /* Destroy the current process's page directory and switch back
