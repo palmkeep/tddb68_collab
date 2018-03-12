@@ -6,6 +6,7 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -37,6 +38,7 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct inode_disk data;             /* Inode content. */
+    struct lock l;
   };
 
 /* Returns the disk sector that contains byte offset POS within
@@ -137,6 +139,9 @@ inode_open (disk_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+  
+  lock_init(&inode->l);
+
   disk_read (filesys_disk, inode->sector, &inode->data);
   return inode;
 }
@@ -194,7 +199,11 @@ void
 inode_remove (struct inode *inode) 
 {
   ASSERT (inode != NULL);
+
+  printf("In inode_remove\n");
+  lock_acquire(&inode->l);
   inode->removed = true;
+  lock_release(&inode->l);
 }
 
 /* Reads SIZE bytes from INODE into BUFFER, starting at position OFFSET.

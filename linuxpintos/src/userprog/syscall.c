@@ -27,8 +27,7 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 
-#include <stdlib.h>
-
+#include "filesys/inode.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -160,18 +159,41 @@ call_create(struct intr_frame *f, char* filename_ptr, off_t file_size)
   {
     if ( filesys_create( filename_ptr, file_size )  )
     {
-      f->eax = 1;
+      f->eax = true;
     }
     else
     {
-      f->eax = 0;
+      f->eax = false;
     }
   }
   else
   {
-    f->eax = 0;
+    f->eax = false;
   }
 }
+
+
+/* The removal of the file is delayed until it is not opened by any process.
+ * Make sure that this counter is synched.
+ * */
+static void
+call_remove(struct intr_frame *f, const char* file_name)
+{
+  struct file *file = filesys_open(file_name);
+  if ( file != NULL)
+  {
+    struct inode *inode = file_get_inode(file);
+
+    inode_remove(inode);
+
+    f->eax = true;
+  }
+  else
+  {
+    f->eax = false;
+  }
+}
+
 
 static void
 call_open(struct intr_frame *f, char* filename)
@@ -181,18 +203,12 @@ call_open(struct intr_frame *f, char* filename)
   f->eax = fd;  // Returns -1 if the file could not be opened
 }
 
+
 static void
-call_close(struct intr_frame *f)
+call_filesize(struct intr_frame *f, int file_descriptor)
 {
-  if(check_user_ptr(f->esp+4) && ((*(int*)(f->esp+4)) != 0 && (*(int*)(f->esp+4) != 1)) )
-  {
-    int fd = *(int*)(f->esp+4);
-    struct thread* current_thread = thread_current();
-    close_file_from_fd(current_thread, fd);
-  }else
-  {
-    call_exit(f,-1);//tried to be fishy 
-  }
+  struct file* file_ptr = get_file_from_fd( thread_current(), file_descriptor);
+  f->eax = (int)file_length( file_ptr );
 }
 
 
@@ -230,7 +246,7 @@ call_read(struct intr_frame *f)
       if (file_struct == NULL)
       {
         call_exit(f,-1);//might be bad???
-//        f->eax = -1;// Error reading file, return -1 error code
+	//f->eax = -1;// Error reading file, return -1 error code
       }
       else
       {
@@ -244,6 +260,7 @@ call_read(struct intr_frame *f)
     //f->eax = -1;
   }
 }
+
 
 static void
 call_write(struct intr_frame *f, int file_descriptor, void* buffer, unsigned size)
@@ -271,6 +288,41 @@ call_write(struct intr_frame *f, int file_descriptor, void* buffer, unsigned siz
     f->eax = size_buffer;
   }
 }
+
+// Remove intr_frame from f-call
+static void
+call_seek(struct intr_frame *f, int file_descriptor, unsigned position)
+{
+  struct file* file_ptr = get_file_from_fd( thread_current(), file_descriptor);
+  file_seek( file_ptr, position );
+}
+
+
+static void
+call_tell(struct intr_frame *f, int file_descriptor)
+{
+  struct file* file_ptr = get_file_from_fd( thread_current(), file_descriptor);
+  f->eax = (unsigned)file_tell( file_ptr );
+}
+
+
+static void
+call_close(struct intr_frame *f)
+{
+  if(check_user_ptr(f->esp+4) && ((*(int*)(f->esp+4)) != 0 && (*(int*)(f->esp+4) != 1)) )
+  {
+    int fd = *(int*)(f->esp+4);
+    struct thread* current_thread = thread_current();
+    close_file_from_fd(current_thread, fd);
+  }
+  else
+  {
+    call_exit(f,-1);//tried to be fishy 
+  }
+}
+
+
+
 
 
 
@@ -336,30 +388,46 @@ syscall_handler (struct intr_frame *f UNUSED)
 	  call_exit(f, -1); // Bad ptr
 	}
         break;
+
+      case SYS_REMOVE:
+	if (check_user_ptr(f->esp+4) && check_user_str_ptr( *(char**)(f->esp+4) ) )
+	{
+	  const char* file_name = *(char**)(f->esp+4);
+	  call_remove(f, file_name);
+	}
+	else
+	{
+	  f->eax = false;
+	}
+	break;
     
       case SYS_OPEN:
 	if ( check_user_str_ptr( *(char**)(f->esp+4) ) )
 	{
-	  char* filename = *(char**)(f->esp+4);
-	  call_open(f, filename);
-
+	  call_open(f, *(char**)(f->esp+4));
 	}
 	else
 	{
 	  call_exit(f, -1); // Bad ptr
 	}
-        break; 
-      
-       case SYS_CLOSE:
-        call_close(f);
         break;
-  
+
+      case SYS_FILESIZE:
+	if (check_user_ptr( f->esp+4 ))
+	{
+	  call_filesize(f, *(int*)(f->esp+4));
+	}
+	else
+	{
+	  f->eax = -1;
+	}
+
       case SYS_READ:
         call_read(f);
         break; 
   
       case SYS_WRITE:
-	if  ( check_user_ptr( f->esp+4 ) && check_user_ptr( f->esp+12 ) )
+	if ( check_user_ptr( f->esp+4 ) && check_user_ptr( f->esp+12 ) )
 	{
 	  unsigned size = *(unsigned*)(f->esp+12);
 	  if ( size != 0 )
@@ -381,10 +449,35 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	else
 	{
-	  //ASD
 	  call_exit(f, -1);
 	}
         break;
+
+      case SYS_SEEK:
+	if ( check_user_ptr( f->esp+4 ) && check_user_ptr( f->esp+8) )
+	{
+	  call_seek( f, *(int*)( f->esp+4 ), *(unsigned*)(f->esp+8) );
+	}
+	else
+	{
+	  call_exit(f, -1);
+	}
+	break;
+
+      case SYS_TELL:
+	if ( check_user_ptr( f->esp+4) )
+	{
+	  call_tell( f, *(int*)( f->esp+4) );
+	}
+	else
+	{
+	  call_exit(f, -1);
+	}
+	break;
+      
+      case SYS_CLOSE:
+	call_close(f);
+	break;
   
       default:
 	call_exit(f, -1); // Bad syscall number passed
