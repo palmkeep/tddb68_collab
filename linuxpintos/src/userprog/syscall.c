@@ -117,7 +117,6 @@ static void
 call_exec( struct intr_frame* f, char* cmd_line )
 {
   tid_t pid = process_execute(cmd_line);
-  printf("EXEC| pid:%d | cmd_line: %s\n", pid, cmd_line);
 
   if (pid == TID_ERROR) {
     f->eax = -1;

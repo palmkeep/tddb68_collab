@@ -367,6 +367,7 @@ process_exit (void)
   {
     struct child_return* child_return = (struct child_return*)( malloc(sizeof(struct child_return)) );
     child_return->tid = cur->tid;
+
     child_return->returned_val = cur->ret_status;
 
     lock_acquire(parent_rel->return_lock);
@@ -376,7 +377,10 @@ process_exit (void)
 
     lock_release(parent_rel->return_lock);
 
-    sema_up( parent_rel->p_sema );
+    if (cur->tid == parent_rel->awaited_tid)
+    {
+      sema_up( parent_rel->p_sema );
+    }
   }
 
   // CHILD RELATIONSHIP
