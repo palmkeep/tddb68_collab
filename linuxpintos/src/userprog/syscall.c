@@ -96,7 +96,7 @@ check_user_str_ptr(const char* ptr)
 
 
 static bool
-check_user_buf_ptr(const char* ptr, const unsigned size)
+check_user_buf_ptr(const void* ptr, const unsigned size)
 {
 //  printf("CHECK BUFFER\n");
   struct thread *cur = thread_current ();
@@ -105,9 +105,9 @@ check_user_buf_ptr(const char* ptr, const unsigned size)
 
   unsigned i = 0;
 
-//  printf("size: %d\n", size);
   while (i < size)
   {
+    printf("%c",ptr+i);
     if ( NULL == pagedir_get_page(pd, ptr+i) ) { return false; }
     i++;
   }
@@ -201,6 +201,7 @@ call_open(struct intr_frame *f, char* filename)
   struct thread* current_thread = thread_current();
   int fd = add_file_to_fd(current_thread, filename);
   f->eax = fd;  // Returns -1 if the file could not be opened
+  printf("SYS_OPEN ret: %d\n", fd);
 }
 
 
@@ -208,27 +209,29 @@ static void
 call_filesize(struct intr_frame *f, int file_descriptor)
 {
   struct file* file_ptr = get_file_from_fd( thread_current(), file_descriptor);
-  f->eax = (int)file_length( file_ptr );
+  int s = (int)file_length( file_ptr );
+  f->eax = s;
+  printf("SYS_FILESIZE ret: %d\n", s);
 }
 
 
+// SYS_READ Does not work for large buffers
 static void
-call_read(struct intr_frame *f)
+call_read(struct intr_frame *f, int fd, void *buffer, off_t size)
 {
-  if(check_user_ptr(*(void**)(f->esp+8))) 
+  printf("In SYS_READ\n");
+  printf("Buf ptr: %p\n", buffer);
+  printf("Size: %u\n", size);
+  if( check_user_buf_ptr( buffer, size ) ) 
   {
-    // SYS_READ Does not work for large buffers
-    int fd = *(int*)(f->esp+4);
-    void* buffer = *(void**)(f->esp+8);
-    off_t size = (off_t)*(unsigned*)(f->esp+12);
-  
+    printf("AA\n");
     struct thread* current_thread = thread_current();
   
     struct file* file_struct;
     if (fd == 0)  // Read from keyboard
     {
       off_t it = 0;
-      while (it <	size)
+      while (it < size)
       {
         uint8_t ch = input_getc();
         ((uint8_t*)buffer)[it] = ch;
@@ -238,24 +241,29 @@ call_read(struct intr_frame *f)
     }
     else if (fd == 1) // Read from STDOUT
     {
+      printf("Exit with -1\n");
       f->eax = -1;
     }
     else              // Read from file
     {
+      printf("B\n");
       file_struct = get_file_from_fd(current_thread, fd);
       if (file_struct == NULL)
       {
+	printf("Call exit -1");
         call_exit(f,-1);//might be bad???
 	//f->eax = -1;// Error reading file, return -1 error code
       }
       else
       {
+	printf("C\n");
         f->eax = file_read( file_struct, buffer, size );  // Return number of bytes read
       }
     }
   }
   else
   {
+    printf("Call exit -1 B\n");
     call_exit(f,-1); 
     //f->eax = -1;
   }
@@ -271,6 +279,7 @@ call_write(struct intr_frame *f, int file_descriptor, void* buffer, unsigned siz
     char* char_buffer = (char*)buffer;  // Recast to write as char to console
 
     putbuf(char_buffer, size_buffer);
+  printf("End SYS_WRITE, buff size: %d\n", size_buffer);
     f->eax = size_buffer;               // Output amount of chars written
   }
   else
@@ -281,10 +290,10 @@ call_write(struct intr_frame *f, int file_descriptor, void* buffer, unsigned siz
     if ( file_ptr == NULL)
     {
       call_exit(f, -1);
-      ///
     }
 
     file_write( file_ptr, buffer, size_buffer );
+  printf("End SYS_WRITE, buff size: %d\n", size_buffer);
     f->eax = size_buffer;
   }
 }
@@ -338,7 +347,8 @@ syscall_handler (struct intr_frame *f UNUSED)
   {
     unsigned syscall_nr = *(unsigned*)f->esp;
     int s;
-  
+
+    printf("SYSCALL NR: %d\n", syscall_nr);
     switch (syscall_nr)
     {
       case SYS_HALT:
@@ -423,7 +433,18 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 
       case SYS_READ:
-        call_read(f);
+	if ( check_user_ptr(f->esp+4) && check_user_ptr(f->esp+8) && check_user_ptr(f->esp+12) )
+	{
+	  printf("SYS_READ buffer ptr: %p\n", f->esp+8);
+	  printf("SYS_READ size: %u\n", (off_t)*(unsigned*)(f->esp+12));
+	  printf("SYS_READ size ptr: %p\n", f->esp+12);
+	  call_read( f, *(int*)(f->esp+4), *(void**)(f->esp+8), (off_t)*(unsigned*)(f->esp+12) );
+	}
+	else
+	{
+	  printf("Exit in switch\n");
+	  call_exit(f, -1);
+	}
         break; 
   
       case SYS_WRITE:
