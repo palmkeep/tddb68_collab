@@ -21,8 +21,6 @@
 
 #include "threads/synch.h"
 
-#define hello 0
-
 static thread_func start_process NO_RETURN;
 
 static bool load (const char* file_name, const char *cmdline, void (**eip) (void), void **esp);
@@ -141,7 +139,8 @@ process_execute (const char* command_line)
   sh->file_name = name_copy;
 
   char* cmd_line = (char*)( malloc( 1+(strlen(command_line) )*sizeof(char) ) );   // +1 for nullchar
-  strlcpy( cmd_line, cmd_copy, (1+cmd_len)*sizeof(char) ); // +1 for nullchar
+  //strlcpy( cmd_line, cmd_copy, (1+cmd_len)*sizeof(char) ); // +1 for nullchar
+  strlcpy( cmd_line, cmd_copy, (1+strlen(cmd_copy))*sizeof(char) ); // +1 for nullchar
   sh->cmd_line = cmd_line;
 
   free(cmd_copy);
@@ -155,6 +154,13 @@ process_execute (const char* command_line)
   {
     (file_name)[i] = (sh->file_name)[i];
   }
+
+
+  /* DEEEEEBBUUGG*/
+//  printf("Start process; sh->filename: %s\n", sh->file_name);
+//  printf("Start process; sh->cmd_line: %s\n", sh->cmd_line);
+
+  /* END OF DEEEEEEBUG*/
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, sh);
